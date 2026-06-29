@@ -19,3 +19,4 @@ packages = ["kai_notify"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]

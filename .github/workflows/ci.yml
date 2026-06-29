@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pytest
+      - run: pip install -e ".[dev]"   # also validates the pip-installable path
       - run: pytest -q
 
   typescript:
