@@ -1,0 +1,43 @@
+name: "kai-notify"
+description: "Push one line / digest to Kai's Telegram. Fail-soft: never fails the calling workflow."
+author: "pei760730"
+branding:
+  icon: "send"
+  color: "blue"
+
+inputs:
+  text:
+    description: "Message text. Use this OR title+items."
+    required: false
+    default: ""
+  title:
+    description: "Digest title (used with items)."
+    required: false
+    default: ""
+  items:
+    description: "Newline-separated digest items."
+    required: false
+    default: ""
+  bot-token:
+    description: "Telegram bot token. Defaults to env/secret KAI_NOTIFY_BOT_TOKEN."
+    required: false
+    default: ""
+  chat-id:
+    description: "Owner chat id. Defaults to env/secret KAI_NOTIFY_CHAT_ID."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Send to Telegram (fail-soft)
+      shell: bash
+      env:
+        # Inputs win if given; otherwise fall back to the caller's env/secret.
+        KAI_NOTIFY_BOT_TOKEN: ${{ inputs.bot-token != '' && inputs.bot-token || env.KAI_NOTIFY_BOT_TOKEN }}
+        KAI_NOTIFY_CHAT_ID: ${{ inputs.chat-id != '' && inputs.chat-id || env.KAI_NOTIFY_CHAT_ID }}
+        KN_TEXT: ${{ inputs.text }}
+        KN_TITLE: ${{ inputs.title }}
+        KN_ITEMS: ${{ inputs.items }}
+      run: |
+        python3 "$GITHUB_ACTION_PATH/scripts/action_send.py" || true
