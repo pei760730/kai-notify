@@ -28,20 +28,6 @@ jobs:
       - run: pip install -e ".[dev]"   # also validates the pip-installable path
       - run: pytest -q
 
-  typescript:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ts
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npm install
-      - run: npm run typecheck
-      - run: npm test
-
   action-selftest:
     # Proves action.yml is valid and fail-soft: with no token it must skip and
     # still succeed (exit 0), never breaking a caller's workflow.
@@ -52,13 +38,3 @@ jobs:
         uses: ./
         with:
           text: "selftest (should be skipped, no secret in CI)"
-      - name: Optional real send when secret is configured
-        if: ${{ env.KAI_NOTIFY_BOT_TOKEN != '' }}
-        uses: ./
-        env:
-          KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
-          KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
-        with:
-          text: "✅ kai-notify CI green @ ${{ github.sha }}"
-    env:
-      KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}

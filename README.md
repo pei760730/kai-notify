@@ -78,22 +78,12 @@ notify("radar run ok")
 notify_digest("Today's ledger", ["MP +1.2%", "PLTR -0.4%"])
 ```
 
-### C) In-process Node (TypeScript / JS, Node >= 18)
+Both return `true` on success, `false` when skipped/failed — and never throw.
 
-Zero runtime deps (uses global `fetch`). Install from the subdir or copy
-`ts/src/index.ts`:
-
-```bash
-npm i "github:pei760730/kai-notify#main" # then import from the ts/ build
-```
-
-```ts
-import { notify, notifyDigest } from "@pei760730/kai-notify";
-await notify("collector drained 4 items");
-await notifyDigest("Today's ledger", ["MP +1.2%", "PLTR -0.4%"]);
-```
-
-All three return `true` on success, `false` when skipped/failed — and never throw.
+> Node / TypeScript consumers: use surface **A** (the composite action) from your
+> workflow. There is no separate npm package — a parallel TS implementation was
+> removed because nothing imported it; every Node cron is an Actions job that the
+> action already serves with one step.
 
 ---
 
@@ -109,13 +99,11 @@ is that reporter. See `.github/workflows/radar-watchdog.yml` in that repo.
 action.yml              composite action (uses: pei760730/kai-notify@main)
 scripts/action_send.py  action entry — imports the python core (one source of truth)
 python/kai_notify/      pip-installable / vendorable Python helper
-ts/src/index.ts         zero-dep TypeScript helper
-.github/workflows/ci.yml  pytest + vitest + action self-test
+.github/workflows/ci.yml  pytest + action self-test
 ```
 
 ## Develop
 
 ```bash
 cd python && pip install pytest && pytest -q
-cd ts && npm install && npm run typecheck && npm test
 ```
