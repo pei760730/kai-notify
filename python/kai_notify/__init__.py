@@ -28,6 +28,29 @@ _log = logging.getLogger("kai_notify")
 
 _API = "https://api.telegram.org/bot{token}/sendMessage"
 _TIMEOUT = 10  # seconds; a slow Telegram must not stall the caller's cron
+# Telegram rejects a sendMessage over 4096 chars with 400 — which fail-soft
+# would swallow, silently dropping the whole message. Truncate instead.
+_TG_MAX = 4096
+_TRUNC_MARK = "…(truncated)"
+
+
+def _clip(text: str) -> str:
+    """Clip to Telegram's hard limit, by code point (never splits a CJK char
+    or emoji), leaving room for a visible truncation marker."""
+    if len(text) <= _TG_MAX:
+        return text
+    return text[: _TG_MAX - len(_TRUNC_MARK)].rstrip() + _TRUNC_MARK
+
+
+def _failure_hint(code: int, description: str) -> str:
+    """Turn a Telegram error into something an AI/operator can act on from a
+    log line — the #1 silent-mute causes across many fail-closed repos."""
+    d = description.lower()
+    if code == 400 and "chat not found" in d:
+        return " — the bot was never /start-ed by this chat, or the chat id is wrong"
+    if code in (401, 403, 404):
+        return " — bot token invalid/revoked, or the bot was blocked"
+    return ""
 
 
 def _credentials() -> tuple[str, str] | None:
@@ -49,7 +72,7 @@ def _send(text: str) -> bool:
         return False
     token, chat_id = creds
     payload = json.dumps(
-        {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+        {"chat_id": chat_id, "text": _clip(text), "disable_web_page_preview": True}
     ).encode("utf-8")
     req = urllib.request.Request(
         _API.format(token=token),
@@ -59,8 +82,29 @@ def _send(text: str) -> bool:
     )
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            resp.read()  # drain
-        return True
+            body = resp.read()
+        # A 200 can still carry {"ok": false} — don't report that as sent.
+        try:
+            ok = bool(json.loads(body.decode("utf-8")).get("ok"))
+        except Exception:  # noqa: BLE001 - non-JSON 200 is unexpected; trust it
+            ok = True
+        if not ok:
+            _log.warning("kai_notify: telegram returned ok=false (fail-soft)")
+        return ok
+    except urllib.error.HTTPError as exc:
+        # Surface Telegram's own 'description' + a root-cause hint so a silently
+        # muted repo is diagnosable from one log line.
+        try:
+            description = json.loads(exc.read().decode("utf-8")).get("description", "")
+        except Exception:  # noqa: BLE001
+            description = exc.reason or ""
+        _log.warning(
+            "kai_notify: send failed (fail-soft): HTTP %s %s%s",
+            exc.code,
+            description,
+            _failure_hint(exc.code, description),
+        )
+        return False
     except Exception as exc:  # noqa: BLE001 - fail-soft: never propagate
         _log.warning("kai_notify: send failed (fail-soft): %s", exc)
         return False

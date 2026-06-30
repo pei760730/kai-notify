@@ -98,3 +98,51 @@ def test_failsoft_when_telegram_errors(monkeypatch):
     monkeypatch.setattr(kai_notify.urllib.request, "urlopen", boom)
     # error is swallowed, caller's cron survives
     assert kai_notify.notify("hi") is False
+
+
+def test_long_message_is_clipped_by_codepoint(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # 5000 CJK chars: over Telegram's 4096 limit, and would 400 if not clipped.
+    assert kai_notify.notify("漢" * 5000) is True
+    text = sent["body"]["text"]
+    assert len(text) <= 4096
+    assert text.endswith("…(truncated)")
+    # codepoint-clean: no broken half-characters, body is valid as sent
+    assert text[:-len("…(truncated)")].strip("漢") == ""
+
+
+def test_200_with_ok_false_is_not_a_success(monkeypatch):
+    _creds(monkeypatch)
+
+    class _R:
+        def read(self):
+            return b'{"ok":false,"description":"Forbidden"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", lambda req, timeout=None: _R())
+    assert kai_notify.notify("hi") is False
+
+
+def test_httperror_logs_description_and_hint(monkeypatch, caplog):
+    import io
+
+    _creds(monkeypatch)
+
+    def raise_400(req, timeout=None):
+        raise kai_notify.urllib.error.HTTPError(
+            "url", 400, "Bad Request", {},
+            io.BytesIO(b'{"ok":false,"description":"Bad Request: chat not found"}'),
+        )
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", raise_400)
+    with caplog.at_level("WARNING"):
+        assert kai_notify.notify("hi") is False
+    logged = caplog.text
+    assert "chat not found" in logged          # Telegram's own description surfaced
+    assert "/start" in logged                  # actionable root-cause hint

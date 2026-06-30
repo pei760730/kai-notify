@@ -12,10 +12,14 @@ shared core that lets **any repo, in one line, speak to Kai in Telegram**.
 - **fail-closed** — sends only to the single configured chat id. Token and chat
   id come from env/secret, never hardwired. Repo is public; no secrets in code.
 - **plain text** — no MarkdownV2 (its escaping silently drops messages).
+- **no silent loss** — messages over Telegram's 4096-char limit are clipped (by
+  code point) instead of being rejected and swallowed; failures log Telegram's
+  own `description` + a root-cause hint (e.g. "bot was never /start-ed").
 - **two calls** — `notify(text)` and `notify_digest(title, items)`.
 
-It reuses the **same Telegram bot** as the collectors, so Kai just gets one new
-conversation thread, not a second bot to manage.
+It speaks through a **dedicated notify bot** (separate from the collector bots),
+so notifications live in their own Telegram thread instead of mixing with inbound
+collection.
 
 ---
 
