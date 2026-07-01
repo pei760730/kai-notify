@@ -29,7 +29,9 @@ sys.path.insert(
 from kai_notify import notify  # noqa: E402
 
 OWNER = "pei760730"
-_API = "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs?per_page=1"
+_API = (
+    "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs?per_page=1"
+)
 _TIMEOUT = 15
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
@@ -92,8 +94,12 @@ def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
     kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到)。
     只有 fail/stale/unknown 算「要人看」；running/cancelled 視為沒事(它在動)。"""
     if run is None:
-        return {"kind": "unknown", "name": name,
-                "detail": "讀不到它的狀態（權限或 workflow 名字對不上？）", "url": ""}
+        return {
+            "kind": "unknown",
+            "name": name,
+            "detail": "讀不到它的狀態（權限或 workflow 名字對不上？）",
+            "url": "",
+        }
     concl = run.get("conclusion")  # success/failure/cancelled/None(進行中)
     url = run.get("html_url", "")
     try:
@@ -104,12 +110,21 @@ def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
         age, ago = None, "?"
 
     if concl == "failure":
-        return {"kind": "fail", "name": name, "detail": f"{ago}前那次跑失敗了", "url": url}
+        return {
+            "kind": "fail",
+            "name": name,
+            "detail": f"{ago}前那次跑失敗了",
+            "url": url,
+        }
 
     stale = age is not None and age > _STALE_AFTER.get(cadence, timedelta(hours=26))
     if stale:
-        return {"kind": "stale", "name": name,
-                "detail": f"已經 {ago} 沒動靜了（{_CADENCE_HUMAN.get(cadence, '')}），排程可能卡住", "url": url}
+        return {
+            "kind": "stale",
+            "name": name,
+            "detail": f"已經 {ago} 沒動靜了（{_CADENCE_HUMAN.get(cadence, '')}），排程可能卡住",
+            "url": url,
+        }
 
     # success / 進行中 / cancelled 都當「沒事」——它有在動就好。
     return {"kind": "ok", "name": name, "detail": f"{ago}前跑過", "url": url}

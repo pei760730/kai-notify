@@ -109,7 +109,7 @@ def test_long_message_is_clipped_by_codepoint(monkeypatch):
     assert len(text) <= 4096
     assert text.endswith("…(truncated)")
     # codepoint-clean: no broken half-characters, body is valid as sent
-    assert text[:-len("…(truncated)")].strip("漢") == ""
+    assert text[: -len("…(truncated)")].strip("漢") == ""
 
 
 def test_200_with_ok_false_is_not_a_success(monkeypatch):
@@ -125,7 +125,9 @@ def test_200_with_ok_false_is_not_a_success(monkeypatch):
         def __exit__(self, *a):
             return False
 
-    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", lambda req, timeout=None: _R())
+    monkeypatch.setattr(
+        kai_notify.urllib.request, "urlopen", lambda req, timeout=None: _R()
+    )
     assert kai_notify.notify("hi") is False
 
 
@@ -136,7 +138,10 @@ def test_httperror_logs_description_and_hint(monkeypatch, caplog):
 
     def raise_400(req, timeout=None):
         raise kai_notify.urllib.error.HTTPError(
-            "url", 400, "Bad Request", {},
+            "url",
+            400,
+            "Bad Request",
+            {},
             io.BytesIO(b'{"ok":false,"description":"Bad Request: chat not found"}'),
         )
 
@@ -144,5 +149,5 @@ def test_httperror_logs_description_and_hint(monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         assert kai_notify.notify("hi") is False
     logged = caplog.text
-    assert "chat not found" in logged          # Telegram's own description surfaced
-    assert "/start" in logged                  # actionable root-cause hint
+    assert "chat not found" in logged  # Telegram's own description surfaced
+    assert "/start" in logged  # actionable root-cause hint

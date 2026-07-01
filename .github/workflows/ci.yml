@@ -15,6 +15,19 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    # ruff over both the package and the standalone scripts (fleet_digest lives
+    # outside the package, so lint from the repo root to cover it too).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check python scripts
+      - run: ruff format --check python scripts
+
   python:
     runs-on: ubuntu-latest
     defaults:
