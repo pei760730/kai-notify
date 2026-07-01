@@ -11,7 +11,9 @@ import os
 from datetime import datetime, timedelta, timezone
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_SCRIPT = os.path.normpath(os.path.join(_HERE, "..", "..", "scripts", "fleet_digest.py"))
+_SCRIPT = os.path.normpath(
+    os.path.join(_HERE, "..", "..", "scripts", "fleet_digest.py")
+)
 
 
 def _load():
@@ -96,7 +98,9 @@ def test_assess_frequent_stale_when_idle_too_long():
 # ── main() message composition ───────────────────────────────────────────────
 def _capture_notify(monkeypatch):
     box = {}
-    monkeypatch.setattr(fd, "notify", lambda text: box.__setitem__("text", text) or True)
+    monkeypatch.setattr(
+        fd, "notify", lambda text: box.__setitem__("text", text) or True
+    )
     return box
 
 
