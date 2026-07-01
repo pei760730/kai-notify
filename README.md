@@ -15,7 +15,9 @@ shared core that lets **any repo, in one line, speak to Kai in Telegram**.
 - **no silent loss** — messages over Telegram's 4096-char limit are clipped (by
   code point) instead of being rejected and swallowed; failures log Telegram's
   own `description` + a root-cause hint (e.g. "bot was never /start-ed").
-- **two calls** — `notify(text)` and `notify_digest(title, items)`.
+- **three calls** — `notify(text)`, `notify_digest(title, items)`, and
+  `notify_metric(label, value, floor)` (the last flags a *green-but-empty* run —
+  see below).
 
 It speaks through a **dedicated notify bot** (separate from the collector bots),
 so notifications live in their own Telegram thread instead of mixing with inbound
@@ -82,7 +84,34 @@ notify("radar run ok")
 notify_digest("Today's ledger", ["MP +1.2%", "PLTR -0.4%"])
 ```
 
-Both return `true` on success, `false` when skipped/failed — and never throw.
+All return `true` on success, `false` when skipped/failed — and never throw.
+
+### C) Guard a "green but empty" run — `notify_metric`
+
+A cron can **succeed and still produce nothing** (scraped 0 rows, synced 0
+files). That never shows up in the run's *conclusion*, so the fleet-digest —
+which only reads conclusions — is structurally blind to it. Report what the run
+actually produced, and kai-notify pings **only** when it comes up short:
+
+```python
+from kai_notify import notify_metric
+notify_metric("voc daily", rows_written, floor=1, unit="篇")
+```
+
+Below `floor` → an immediate "跑綠但產出 0" alert (visible the moment it happens,
+not a day later). At/above the floor → silent, like every other success here.
+The same is available to yml-only workflows via the action:
+
+```yaml
+- uses: pei760730/kai-notify@v1
+  env:
+    KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
+    KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
+  with:
+    label: "voc daily"
+    value: ${{ steps.run.outputs.rows }}
+    floor: "1"
+```
 
 > Node / TypeScript consumers: use surface **A** (the composite action) from your
 > workflow. There is no separate npm package — a parallel TS implementation was
@@ -125,6 +154,16 @@ a monitor's whole worth is that it never falsely reassures. And it is
 **history-aware**: each day's verdicts are persisted to `state/fleet_history.json`
 (git is the store — no new platform), so it reports deterioration, not a stateless
 snapshot. This is why the digest job needs `contents: write` (to commit history).
+
+It reasons over that history, not just today's boolean:
+
+- **recovery** — a cron that failed yesterday and is green today gets its own
+  "✅ 之前在鬧,今天恢復了" line instead of vanishing into "其他都正常". A fix
+  confirming itself is worth one line.
+- **flapping** — a cron that oscillates (ok/fail/ok/fail) is flagged 🔀時好時壞
+  even on a green day. The consecutive-streak suffix can't see intermittent
+  instability — it reads every other day as "今天第一次"; this catches the
+  chronic-but-not-constant failure the streak logic hides.
 
 Its mere arrival **is** the heartbeat: no message one morning → the pipe is dead.
 Needs a `FLEET_READ_TOKEN` secret (fine-grained PAT, **Actions: Read-only**

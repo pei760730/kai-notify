@@ -18,6 +18,18 @@ inputs:
     description: "Newline-separated digest items."
     required: false
     default: ""
+  label:
+    description: "Product-metric label (used with value). Alerts only when value < floor."
+    required: false
+    default: ""
+  value:
+    description: "What the run actually produced (e.g. rows scraped). Use with label."
+    required: false
+    default: ""
+  floor:
+    description: "Minimum healthy value; below it sends a 'green but empty' alert. Default 1."
+    required: false
+    default: ""
   bot-token:
     description: "Telegram bot token. Defaults to env/secret KAI_NOTIFY_BOT_TOKEN."
     required: false
@@ -39,5 +51,8 @@ runs:
         KN_TEXT: ${{ inputs.text }}
         KN_TITLE: ${{ inputs.title }}
         KN_ITEMS: ${{ inputs.items }}
+        KN_LABEL: ${{ inputs.label }}
+        KN_VALUE: ${{ inputs.value }}
+        KN_FLOOR: ${{ inputs.floor }}
       run: |
         python3 "$GITHUB_ACTION_PATH/scripts/action_send.py" || true

@@ -24,7 +24,7 @@ import urllib.error
 import urllib.request
 from typing import Iterable
 
-__all__ = ["notify", "notify_digest"]
+__all__ = ["notify", "notify_digest", "notify_metric"]
 
 _log = logging.getLogger("kai_notify")
 
@@ -201,3 +201,43 @@ def notify_digest(title: str, items: Iterable[object]) -> bool:
     if not lines:
         return False
     return _send("\n".join(lines))
+
+
+def _fmt_num(n: float) -> str:
+    """Show 0 not 0.0: an integer-valued float renders without a decimal tail."""
+    try:
+        return str(int(n)) if float(n).is_integer() else str(n)
+    except (TypeError, ValueError, OverflowError):
+        return str(n)
+
+
+def notify_metric(label: str, value: object, floor: float = 1, unit: str = "") -> bool:
+    """Report a run's *product quantity* — the health a green run can still get
+    wrong. A workflow can 'succeed' yet produce nothing (scraped 0 rows, synced
+    0 files); that never shows up in the run's conclusion, so the fleet-digest
+    (which only reads conclusions) is structurally blind to it. Call this at the
+    end of a run with what it actually produced:
+
+        notify_metric("voc daily", rows_written, floor=1, unit="篇")
+
+    Below ``floor`` it pushes a loud 'green but empty' alert immediately — so the
+    blind spot surfaces the moment it happens, not a day later (and not never).
+    At or above the floor it stays silent: success is silent here, like
+    everything else. Returns True iff an alert was sent. Never raises.
+    """
+    label = (label or "").strip() or "(unnamed)"
+    try:
+        v = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        # Can't tell whether it produced anything -> say so, don't swallow it.
+        return notify(
+            f"⚠️ {label} — 回報了無法判讀的產出量（{value!r}）,"
+            f"run 可能綠但空轉,去看一下。"
+        )
+    if v >= floor:
+        return False
+    u = f" {unit}" if unit else ""
+    return notify(
+        f"⚠️ {label} — 跑成功了,但只產出 {_fmt_num(v)}{u}"
+        f"(門檻 {_fmt_num(floor)}{u})。run 是綠的、產品是空的,去看一下。"
+    )

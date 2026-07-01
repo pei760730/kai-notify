@@ -111,6 +111,39 @@ def _streak_suffix(prior: list, today_kind: str) -> str:
     return f"(連 {n} 天)" if n >= 2 else ""
 
 
+def _transitions(kinds: list) -> int:
+    """Count healthy<->not-healthy flips across a kind sequence (oldest..newest).
+    'unknown' (couldn't read) is neutral — it neither starts nor breaks a flip
+    run, so a spell of unreadable days doesn't masquerade as instability."""
+    flips = 0
+    prev_ok: bool | None = None
+    for k in kinds:
+        if k == "unknown":
+            continue
+        is_ok = k == "ok"
+        if prev_ok is not None and is_ok != prev_ok:
+            flips += 1
+        prev_ok = is_ok
+    return flips
+
+
+def _is_flapping(prior: list, today_kind: str) -> bool:
+    """Flapping = genuine oscillation over the recent window (prior + today):
+    >= 3 healthy<->broken flips. One clean incident (ok..fail..ok = 2 flips)
+    is NOT flapping; ok/fail/ok/fail (3 flips) is. Needs >= 4 real samples so a
+    short history can't false-positive — this is the chronic-instability signal
+    the consecutive-streak suffix structurally can't see."""
+    window = [k for k in (prior + [today_kind]) if k != "unknown"]
+    return len(window) >= 4 and _transitions(window) >= 3
+
+
+def _recovered(prior: list, today_kind: str) -> bool:
+    """True when today is healthy but yesterday it was actually broken
+    (fail/stale) — a recovery worth one line. 'unknown -> ok' is just 'readable
+    again', not a recovery, so it doesn't count."""
+    return today_kind == "ok" and bool(prior) and prior[-1] in ("fail", "stale")
+
+
 def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None]:
     """回傳 (最近一次 run 或 None, 錯誤種類 或 None)。
     err: None=讀到了; 'auth'=PAT 失效(401/403); 'ratelimit'=被限流;
@@ -238,40 +271,79 @@ def main() -> int:
     for key, name, cadence, run, _err in reads:
         a = _assess(name, cadence, run, now)
         a["key"] = key
+        # 用「今天以前」的歷史(還沒 append 今天)判讀趨勢。
+        prior = history.get(key, [])
+        a["recovered"] = _recovered(prior, a["kind"])
+        a["flapping"] = _is_flapping(prior, a["kind"])
         assessed.append(a)
     problems = [a for a in assessed if a["kind"] != "ok"]
 
+    # 就算現在是綠的,這兩件也值得單獨講一行(否則會被「其他都正常」吞掉):
+    #  · 恢復:昨天還在鬧、今天好了 —— 一句報喜,也證明問題真的解了。
+    #  · 反覆:時好時壞的慢性不穩定 —— 現在剛好綠,但別當它沒事。
+    recoveries = [a for a in assessed if a["kind"] == "ok" and a["recovered"]]
+    flaps_ok = [
+        a
+        for a in assessed
+        if a["kind"] == "ok" and a["flapping"] and not a["recovered"]
+    ]
+
+    def _highlights() -> list[str]:
+        lines = []
+        for a in recoveries:
+            tail = "（不過這幾天一直反覆,還是盯著)" if a["flapping"] else ""
+            lines.append(f"✅ {a['name']} — 之前在鬧,今天恢復了{tail}")
+        for a in flaps_ok:
+            lines.append(
+                f"🔀 {a['name']} — 這幾天時好時壞、一直反覆,現在剛好是綠的但值得盯"
+            )
+        return lines
+
     if not problems:
-        # 全好:一句讓他放心。若連續多天全綠,順帶報個信心。
-        prior = history.get("_fleet", [])
-        green = 1
-        for k in reversed(prior):
-            if k == "green":
-                green += 1
-            else:
-                break
-        streak = f"（連續 {green} 天全綠）" if green >= 3 else ""
-        msg = (
-            f"🌅 早安 Kai — 後端一切正常 😌{streak}\n\n"
-            f"{len(assessed)} 個排程都乖乖跑過、沒半個出事,今天不用你動手。"
-        )
+        highlights = _highlights()
+        if highlights:
+            # 沒出事,但有恢復/反覆要讓他知道 —— 不是純報平安。
+            msg = (
+                f"🌅 早安 Kai — 後端沒出事,但有 {len(highlights)} 件想讓你知道 👇\n\n"
+                + "\n".join(highlights)
+                + f"\n\n其餘 {len(assessed) - len(highlights)} 個都正常 ✅"
+            )
+        else:
+            # 全好:一句讓他放心。若連續多天全綠,順帶報個信心。
+            prior_fleet = history.get("_fleet", [])
+            green = 1
+            for k in reversed(prior_fleet):
+                if k == "green":
+                    green += 1
+                else:
+                    break
+            streak = f"（連續 {green} 天全綠）" if green >= 3 else ""
+            msg = (
+                f"🌅 早安 Kai — 後端一切正常 😌{streak}\n\n"
+                f"{len(assessed)} 個排程都乖乖跑過、沒半個出事,今天不用你動手。"
+            )
     else:
-        # (b) 有記憶:每條問題帶「連 N 天 / 今天第一次」,分辨慢性 vs 新問題。
+        # (b) 有記憶:每條問題帶「連 N 天 / 今天第一次」,分辨慢性 vs 新問題;
+        #     再帶「時好時壞」標籤,分辨慢性穩定壞 vs 間歇性不穩。
         blocks = []
         for a in problems:
             suffix = _streak_suffix(history.get(a["key"], []), a["kind"])
             head = f"{_ICON.get(a['kind'], '⚠️')} {a['name']} — {a['detail']}"
             if suffix:
                 head += f" {suffix}"
+            if a["flapping"]:
+                head += " 🔀時好時壞"
             if a["url"]:
                 head += f"\n   👉 {a['url']}"
             blocks.append(head)
         ok_n = len(assessed) - len(problems)
-        msg = (
-            f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n"
-            + "\n\n".join(blocks)
-            + f"\n\n其他 {ok_n} 個都正常 ✅"
+        msg = f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n" + "\n\n".join(
+            blocks
         )
+        highlights = _highlights()
+        if highlights:
+            msg += "\n\n另外(現在沒壞,但值得知道):\n" + "\n".join(highlights)
+        msg += f"\n\n其他 {ok_n} 個都正常 ✅"
 
     # heartbeat 提醒:低調一行,但要在——這則的意義就是「沒收到=通知線斷了」。
     msg += "\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"

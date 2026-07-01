@@ -194,3 +194,88 @@ def test_main_degraded_when_no_pat(monkeypatch):
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     assert "看不到各 repo" in box["text"]
+
+
+# ── _transitions / _is_flapping / _recovered ─────────────────────────────────
+def test_transitions_counts_health_flips():
+    assert fd._transitions(["ok", "ok", "ok"]) == 0
+    assert fd._transitions(["ok", "fail", "ok"]) == 2
+    assert fd._transitions(["ok", "fail", "ok", "fail"]) == 3
+    # 'unknown' is neutral — a blind day neither starts nor breaks a run.
+    assert fd._transitions(["ok", "unknown", "ok"]) == 0
+    assert fd._transitions(["ok", "unknown", "fail"]) == 1
+
+
+def test_is_flapping_needs_real_oscillation():
+    # one clean incident (down then back up) is NOT flapping
+    assert fd._is_flapping(["ok", "ok", "fail"], "ok") is False
+    # genuine oscillation over >=4 samples IS flapping
+    assert fd._is_flapping(["ok", "fail", "ok"], "fail") is True
+    # too little history can't false-positive
+    assert fd._is_flapping(["fail"], "ok") is False
+
+
+def test_recovered_only_from_real_breakage():
+    assert fd._recovered(["fail"], "ok") is True
+    assert fd._recovered(["stale"], "ok") is True
+    # readable-again after a blind day is not a recovery
+    assert fd._recovered(["unknown"], "ok") is False
+    # still broken today is not a recovery
+    assert fd._recovered(["fail"], "fail") is False
+    # no history -> nothing to recover from
+    assert fd._recovered([], "ok") is False
+
+
+def test_main_reports_recovery_even_when_all_green(monkeypatch):
+    # yesterday th-ops failed; today it's green -> a recovery line, not silence.
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd, "_load_history", lambda: {"th-ops/remind.yml": ["fail", "fail"]}
+    )
+    monkeypatch.setattr(
+        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+    )
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    text = box["text"]
+    assert "恢復了" in text
+    assert "th-ops remind" in text
+    assert "一切正常" not in text  # a recovery is news, not a plain all-green
+
+
+def test_main_flags_flapping_cron_even_when_ok_today(monkeypatch):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    # oscillating history ending on ok yesterday too -> not a recovery, purely
+    # the flapping signal.
+    monkeypatch.setattr(
+        fd,
+        "_load_history",
+        lambda: {"benchmark-radar/radar-watchdog.yml": ["fail", "ok", "fail", "ok"]},
+    )
+    monkeypatch.setattr(
+        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+    )
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "反覆" in box["text"]
+    assert "radar watchdog" in box["text"]
+    assert "恢復了" not in box["text"]  # ok yesterday too -> not a recovery
+
+
+def test_main_tags_flapping_on_a_current_problem(monkeypatch):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd,
+        "_load_history",
+        lambda: {"th-ops/remind.yml": ["fail", "ok", "fail", "ok"]},
+    )
+
+    def fake_latest(repo, wf, token):
+        if repo == "th-ops" and wf == "remind.yml":
+            return (_recent("failure", 10), None)
+        return (_recent("success", 10), None)
+
+    monkeypatch.setattr(fd, "_latest_run", fake_latest)
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "時好時壞" in box["text"]

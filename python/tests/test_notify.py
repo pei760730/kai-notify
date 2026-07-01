@@ -224,3 +224,55 @@ def test_honors_retry_after(monkeypatch):
     assert kai_notify.notify("hi") is True
     # waited at least Telegram's requested retry_after (jitter only adds).
     assert slept and slept[0] >= 2
+
+
+# ── notify_metric — "green but empty" product-quantity guard ──────────────────
+def test_metric_below_floor_alerts(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # 0 produced with default floor 1 -> loud alert.
+    assert kai_notify.notify_metric("voc daily", 0, unit="篇") is True
+    text = sent["body"]["text"]
+    assert "voc daily" in text
+    assert "0 篇" in text
+    assert "門檻 1 篇" in text
+
+
+def test_metric_at_or_above_floor_is_silent(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # Healthy: at/above floor sends nothing and returns False (success is silent).
+    assert kai_notify.notify_metric("voc daily", 5, floor=1) is False
+    assert kai_notify.notify_metric("voc daily", 1, floor=1) is False
+    assert sent == {}
+
+
+def test_metric_custom_floor(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # 3 rows when we expect >= 10 is still "empty enough" to flag.
+    assert kai_notify.notify_metric("radar", 3, floor=10) is True
+    assert "3" in sent["body"]["text"] and "門檻 10" in sent["body"]["text"]
+
+
+def test_metric_integers_render_without_decimal(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    assert kai_notify.notify_metric("x", 0.0, floor=2.0) is True
+    text = sent["body"]["text"]
+    assert "0.0" not in text and "2.0" not in text and "門檻 2" in text
+
+
+def test_metric_unparseable_value_is_surfaced_not_swallowed(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # A non-numeric value must not silently pass as healthy — say we can't read it.
+    assert kai_notify.notify_metric("voc", "N/A") is True
+    assert "無法判讀" in sent["body"]["text"]
+
+
+def test_metric_never_raises_without_creds(monkeypatch):
+    monkeypatch.delenv("KAI_NOTIFY_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("KAI_NOTIFY_CHAT_ID", raising=False)
+    # Below floor wants to alert, but no creds -> fail-soft False, never raises.
+    assert kai_notify.notify_metric("voc", 0) is False
