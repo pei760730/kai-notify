@@ -113,9 +113,18 @@ spot.
 `scripts/fleet_digest.py` reads each monitored cron's latest run, then sends
 **one** message:
 
-- all-green → a single "後端一切正常" line (no status dump),
-- otherwise → only the exceptions (failed / stale / unreadable), in plain
-  language with a run link.
+- all-green → a single "後端一切正常" line (no status dump), with a "連續 N 天全綠"
+  streak once it's been green a while,
+- otherwise → only the exceptions (failed / stale / unreadable), plain-language
+  with a run link and a "連 N 天 / 今天第一次" tag so chronic reads differently
+  from new.
+
+It is **honest about its own blind spots**: if the PAT dies or gets rate-limited
+and most reads fail, it says "只讀到 X/N …先別當全綠" instead of implying health —
+a monitor's whole worth is that it never falsely reassures. And it is
+**history-aware**: each day's verdicts are persisted to `state/fleet_history.json`
+(git is the store — no new platform), so it reports deterioration, not a stateless
+snapshot. This is why the digest job needs `contents: write` (to commit history).
 
 Its mere arrival **is** the heartbeat: no message one morning → the pipe is dead.
 Needs a `FLEET_READ_TOKEN` secret (fine-grained PAT, **Actions: Read-only**

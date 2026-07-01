@@ -11,6 +11,10 @@
 設計原則(對齊 kai_notify):
 - fail-soft:讀不到某 repo 的 run 就標「?」,不中斷整份摘要,永不 raise。
 - 純 stdlib:零依賴,直接 dogfood kai_notify.notify 送出。
+- 誠實(a):PAT 失效/被限流讀不到一大片時,明說「只讀到 X/N」,絕不假裝全綠
+  —— 監視器的信用全靠它從不假性安心。
+- 有記憶(b):把每天各條的判讀存進 repo 內 state/fleet_history.json(git 是既有
+  據點),讓摘要報「連 N 天失敗 / 今天第一次 / 連續 N 天全綠」,而非無記憶快照。
 """
 
 from __future__ import annotations
@@ -62,8 +66,56 @@ _STALE_AFTER = {
 }
 
 
-def _latest_run(repo: str, wf: str, token: str) -> dict | None:
-    """回傳該 workflow 最近一次 run 的 {conclusion, created_at}，讀不到回 None。"""
+# 歷史:每條 cron 存最近 N 天的判讀(oldest..newest),讓 digest 報「連 N 天失敗」
+# 而非無記憶快照。存成 repo 內一個 committed JSON(git 是既有據點,不新增平台)。
+_HISTORY_LEN = 7
+_STATE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "state",
+    "fleet_history.json",
+)
+
+
+def _load_history() -> dict:
+    try:
+        with open(_STATE_FILE, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_history(hist: dict) -> None:
+    # fail-soft:存不了歷史不影響今天已送出的通知。
+    try:
+        os.makedirs(os.path.dirname(_STATE_FILE), exist_ok=True)
+        with open(_STATE_FILE, "w", encoding="utf-8") as fh:
+            json.dump(hist, fh, ensure_ascii=False, indent=1, sort_keys=True)
+    except OSError:
+        pass
+
+
+def _streak_suffix(prior: list, today_kind: str) -> str:
+    """prior=該條過去幾天的 kind(oldest..newest,不含今天)。回『(連 N 天)』/
+    『(今天第一次)』/空,讓 Kai 一眼分辨『慢性病 vs 新問題』。"""
+    if not prior:
+        return ""
+    if prior[-1] != today_kind:
+        return "(今天第一次)"
+    n = 1
+    for k in reversed(prior):
+        if k == today_kind:
+            n += 1
+        else:
+            break
+    return f"(連 {n} 天)" if n >= 2 else ""
+
+
+def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None]:
+    """回傳 (最近一次 run 或 None, 錯誤種類 或 None)。
+    err: None=讀到了; 'auth'=PAT 失效(401/403); 'ratelimit'=被限流;
+    'http'/'network'=其他讀取失敗。分辨這個,digest 才不會把『我根本讀不到』
+    誤當『這條沒跑』而假裝全綠。"""
     req = urllib.request.Request(
         _API.format(owner=OWNER, repo=repo, wf=wf),
         headers={
@@ -76,9 +128,18 @@ def _latest_run(repo: str, wf: str, token: str) -> dict | None:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         runs = data.get("workflow_runs") or []
-        return runs[0] if runs else None
-    except (urllib.error.URLError, json.JSONDecodeError, OSError):
-        return None
+        return (runs[0] if runs else None, None)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            # GitHub 用 403 + x-ratelimit-remaining:0 表示限流,和純授權失敗分開。
+            if exc.headers.get("x-ratelimit-remaining") == "0":
+                return (None, "ratelimit")
+            return (None, "auth")
+        if exc.code == 429:
+            return (None, "ratelimit")
+        return (None, "http")
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return (None, "network")
 
 
 _CADENCE_HUMAN = {
@@ -155,25 +216,56 @@ def main() -> int:
         return 0
 
     now = datetime.now(timezone.utc)
-    assessed = [
-        _assess(name, cadence, _latest_run(repo, wf, token), now)
-        for repo, wf, name, cadence in MONITORED
-    ]
+    reads = []  # (key, name, cadence, run, err)
+    for repo, wf, name, cadence in MONITORED:
+        run, err = _latest_run(repo, wf, token)
+        reads.append((f"{repo}/{wf}", name, cadence, run, err))
+
+    # (a) 誠實:一大片讀取因 PAT/限流失敗 = 我根本沒法驗健康,絕不能假裝全綠。
+    blind = [r for r in reads if r[4] in ("auth", "ratelimit")]
+    if len(blind) >= max(3, len(reads) // 2):
+        reason = "PAT 可能失效" if any(r[4] == "auth" for r in blind) else "被限流"
+        notify(
+            f"🌅 早安 Kai — ⚠️ 這輪我只讀到 {len(reads) - len(blind)}/{len(reads)} 條"
+            f"（{reason}),fleet 健康報不準,先別當全綠 —— 去看一下 kai-notify 的 "
+            f"FLEET_READ_TOKEN。\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
+        )
+        print("fleet-digest: degraded reads; sent honest warning (history untouched).")
+        return 0  # 不更新歷史,別讓一次 token 中斷洗掉連續紀錄
+
+    history = _load_history()
+    assessed = []
+    for key, name, cadence, run, _err in reads:
+        a = _assess(name, cadence, run, now)
+        a["key"] = key
+        assessed.append(a)
     problems = [a for a in assessed if a["kind"] != "ok"]
 
     if not problems:
-        # 最常見的情況:全好。就一句話讓他放心,不要丟一堆流水帳。
+        # 全好:一句讓他放心。若連續多天全綠,順帶報個信心。
+        prior = history.get("_fleet", [])
+        green = 1
+        for k in reversed(prior):
+            if k == "green":
+                green += 1
+            else:
+                break
+        streak = f"（連續 {green} 天全綠）" if green >= 3 else ""
         msg = (
-            f"🌅 早安 Kai — 後端一切正常 😌\n\n"
-            f"{len(assessed)} 個排程昨天都乖乖跑過、沒半個出事,今天不用你動手。"
+            f"🌅 早安 Kai — 後端一切正常 😌{streak}\n\n"
+            f"{len(assessed)} 個排程都乖乖跑過、沒半個出事,今天不用你動手。"
         )
     else:
+        # (b) 有記憶:每條問題帶「連 N 天 / 今天第一次」,分辨慢性 vs 新問題。
         blocks = []
         for a in problems:
-            block = f"{_ICON.get(a['kind'], '⚠️')} {a['name']} — {a['detail']}"
+            suffix = _streak_suffix(history.get(a["key"], []), a["kind"])
+            head = f"{_ICON.get(a['kind'], '⚠️')} {a['name']} — {a['detail']}"
+            if suffix:
+                head += f" {suffix}"
             if a["url"]:
-                block += f"\n   👉 {a['url']}"
-            blocks.append(block)
+                head += f"\n   👉 {a['url']}"
+            blocks.append(head)
         ok_n = len(assessed) - len(problems)
         msg = (
             f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n"
@@ -183,8 +275,16 @@ def main() -> int:
 
     # heartbeat 提醒:低調一行,但要在——這則的意義就是「沒收到=通知線斷了」。
     msg += "\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
-
     sent = notify(msg)
+
+    # (b) 更新歷史:append 今天每條 kind + fleet 整體,裁到最近 N 天。
+    for a in assessed:
+        history[a["key"]] = (history.get(a["key"], []) + [a["kind"]])[-_HISTORY_LEN:]
+    history["_fleet"] = (
+        history.get("_fleet", []) + ["problem" if problems else "green"]
+    )[-_HISTORY_LEN:]
+    _save_history(history)
+
     print("fleet-digest:", "sent." if sent else "skipped/failed (fail-soft).")
     return 0
 
