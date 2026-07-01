@@ -91,6 +91,7 @@ def test_failsoft_when_no_credentials(monkeypatch):
 
 def test_failsoft_when_telegram_errors(monkeypatch):
     _creds(monkeypatch)
+    monkeypatch.setattr(kai_notify.time, "sleep", lambda s: None)  # no real backoff
 
     def boom(req, timeout=None):
         raise OSError("telegram down")
@@ -151,3 +152,75 @@ def test_httperror_logs_description_and_hint(monkeypatch, caplog):
     logged = caplog.text
     assert "chat not found" in logged  # Telegram's own description surfaced
     assert "/start" in logged  # actionable root-cause hint
+
+
+# ── retry (bounded, budgeted, fail-soft) ─────────────────────────────────────
+import io  # noqa: E402
+
+
+def _http_error(code, body=b"{}"):
+    return kai_notify.urllib.error.HTTPError("url", code, "err", {}, io.BytesIO(body))
+
+
+def test_retries_transient_then_succeeds(monkeypatch):
+    _creds(monkeypatch)
+    monkeypatch.setattr(kai_notify.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _http_error(429, b'{"parameters":{"retry_after":1}}')  # rate limit
+        if calls["n"] == 2:
+            raise _http_error(503)  # server error
+        return _Resp()  # 3rd attempt succeeds
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", flaky)
+    assert kai_notify.notify("hi") is True
+    assert calls["n"] == 3  # retried through 429 then 5xx, then delivered
+
+
+def test_gives_up_after_max_attempts(monkeypatch):
+    _creds(monkeypatch)
+    monkeypatch.setattr(kai_notify.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def always_500(req, timeout=None):
+        calls["n"] += 1
+        raise _http_error(500)
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", always_500)
+    assert kai_notify.notify("hi") is False
+    assert calls["n"] == kai_notify._MAX_ATTEMPTS  # bounded, no infinite loop
+
+
+def test_does_not_retry_permanent_errors(monkeypatch):
+    _creds(monkeypatch)
+    monkeypatch.setattr(kai_notify.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def forbidden(req, timeout=None):
+        calls["n"] += 1
+        raise _http_error(403, b'{"description":"Forbidden"}')
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", forbidden)
+    assert kai_notify.notify("hi") is False
+    assert calls["n"] == 1  # 403 won't get better by retrying — fail fast
+
+
+def test_honors_retry_after(monkeypatch):
+    _creds(monkeypatch)
+    slept = []
+    monkeypatch.setattr(kai_notify.time, "sleep", lambda s: slept.append(s))
+    calls = {"n": 0}
+
+    def rate_limited(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _http_error(429, b'{"parameters":{"retry_after":2}}')
+        return _Resp()
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", rate_limited)
+    assert kai_notify.notify("hi") is True
+    # waited at least Telegram's requested retry_after (jitter only adds).
+    assert slept and slept[0] >= 2
