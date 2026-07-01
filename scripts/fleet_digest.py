@@ -31,7 +31,6 @@ from kai_notify import notify  # noqa: E402
 OWNER = "pei760730"
 _API = "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs?per_page=1"
 _TIMEOUT = 15
-_TPE = timezone(timedelta(hours=8))  # Asia/Taipei
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
 # frequent(每 5 分收集 bot)只看最近一次結論、不判 stale(隨時都在跑)。
@@ -80,29 +79,40 @@ def _latest_run(repo: str, wf: str, token: str) -> dict | None:
         return None
 
 
-def _status_line(name: str, cadence: str, run: dict | None, now: datetime) -> tuple[str, bool]:
-    """回傳 (顯示行, 是否有問題)。有問題 = 失敗 / stale / 讀不到。"""
+_CADENCE_HUMAN = {
+    "frequent": "本來就該一直在跑",
+    "daily": "平常每天要跑一次",
+    "weekly": "平常每週跑一次",
+    "monthly": "平常每月跑一次",
+}
+
+
+def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
+    """判讀一個 cron 的最近狀態，回白話結果。
+    kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到)。
+    只有 fail/stale/unknown 算「要人看」；running/cancelled 視為沒事(它在動)。"""
     if run is None:
-        return f"❓ {name}:讀不到 run", True
+        return {"kind": "unknown", "name": name,
+                "detail": "讀不到它的狀態（權限或 workflow 名字對不上？）", "url": ""}
     concl = run.get("conclusion")  # success/failure/cancelled/None(進行中)
-    created = run.get("created_at", "")
+    url = run.get("html_url", "")
     try:
-        ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(run.get("created_at", "").replace("Z", "+00:00"))
         age = now - ts
+        ago = _humanize(age)
     except ValueError:
-        ts, age = None, None
+        age, ago = None, "?"
+
+    if concl == "failure":
+        return {"kind": "fail", "name": name, "detail": f"{ago}前那次跑失敗了", "url": url}
 
     stale = age is not None and age > _STALE_AFTER.get(cadence, timedelta(hours=26))
-    ago = _humanize(age) if age is not None else "?"
-
-    if concl == "success" and not stale:
-        return f"✅ {name} · {ago} 前", False
-    if concl == "failure":
-        return f"❌ {name} · {ago} 前失敗", True
     if stale:
-        return f"⚠️ {name} · 已 {ago} 沒跑(cadence={cadence})", True
-    # 進行中 / cancelled / 其他:非綠、但不一定是災難,標出來讓人看一眼。
-    return f"⚠️ {name} · {concl or '進行中'} · {ago} 前", True
+        return {"kind": "stale", "name": name,
+                "detail": f"已經 {ago} 沒動靜了（{_CADENCE_HUMAN.get(cadence, '')}），排程可能卡住", "url": url}
+
+    # success / 進行中 / cancelled 都當「沒事」——它有在動就好。
+    return {"kind": "ok", "name": name, "detail": f"{ago}前跑過", "url": url}
 
 
 def _humanize(delta: timedelta) -> str:
@@ -115,34 +125,51 @@ def _humanize(delta: timedelta) -> str:
     return f"{h // 24}d"
 
 
+_ICON = {"fail": "❌", "stale": "⏰", "unknown": "❓"}
+
+
 def main() -> int:
     token = (os.environ.get("FLEET_READ_TOKEN") or "").strip()
     if not token:
-        # 沒 PAT 就沒有跨 repo 讀取權;送一則明說,免得「digest 靜悄悄」被誤當管線活著。
+        # 沒 PAT 就讀不到各 repo;老實說,免得「digest 靜悄悄」被誤當一切正常。
         notify(
-            "📋 fleet-digest 未設 FLEET_READ_TOKEN,無法讀跨 repo 狀態(heartbeat 僅代表 digest cron 本身活著)。"
+            "🌅 早安 Kai — 我暫時看不到各 repo 的狀態（FLEET_READ_TOKEN 沒設或失效）。"
+            "這則至少證明通知本身還活著,但 fleet 健康我這輪報不了。"
         )
         print("fleet-digest: no FLEET_READ_TOKEN; sent degraded heartbeat.")
         return 0
 
     now = datetime.now(timezone.utc)
-    lines: list[str] = []
-    problems = 0
-    for repo, wf, name, cadence in MONITORED:
-        run = _latest_run(repo, wf, token)
-        line, bad = _status_line(name, cadence, run, now)
-        lines.append(line)
-        problems += 1 if bad else 0
+    assessed = [
+        _assess(name, cadence, _latest_run(repo, wf, token), now)
+        for repo, wf, name, cadence in MONITORED
+    ]
+    problems = [a for a in assessed if a["kind"] != "ok"]
 
-    date_tpe = now.astimezone(_TPE).strftime("%Y-%m-%d")
-    ok = len(MONITORED) - problems
-    header = (
-        f"📋 fleet daily · {date_tpe} · {ok}/{len(MONITORED)} ok"
-        + (f" · ⚠️{problems} 要看" if problems else " · 全綠")
-    )
-    # 問題行排前面,一眼看到該處理的。
-    lines.sort(key=lambda s: 0 if s[0] in "❌⚠️❓" else 1)
-    sent = notify(header + "\n" + "\n".join(lines))
+    if not problems:
+        # 最常見的情況:全好。就一句話讓他放心,不要丟一堆流水帳。
+        msg = (
+            f"🌅 早安 Kai — 後端一切正常 😌\n\n"
+            f"{len(assessed)} 個排程昨天都乖乖跑過、沒半個出事,今天不用你動手。"
+        )
+    else:
+        blocks = []
+        for a in problems:
+            block = f"{_ICON.get(a['kind'], '⚠️')} {a['name']} — {a['detail']}"
+            if a["url"]:
+                block += f"\n   👉 {a['url']}"
+            blocks.append(block)
+        ok_n = len(assessed) - len(problems)
+        msg = (
+            f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n"
+            + "\n\n".join(blocks)
+            + f"\n\n其他 {ok_n} 個都正常 ✅"
+        )
+
+    # heartbeat 提醒:低調一行,但要在——這則的意義就是「沒收到=通知線斷了」。
+    msg += "\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
+
+    sent = notify(msg)
     print("fleet-digest:", "sent." if sent else "skipped/failed (fail-soft).")
     return 0
 
