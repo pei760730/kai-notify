@@ -91,19 +91,47 @@ Both return `true` on success, `false` when skipped/failed — and never throw.
 
 ---
 
-## Live consumer
+## Live consumers
 
-`benchmark-radar`'s daily watchdog cron pushes a one-line runner status via this
-action — its own code noted it "self-records but never self-reports"; kai-notify
-is that reporter. See `.github/workflows/radar-watchdog.yml` in that repo.
+Across Kai's backend, every scheduled cron reports through this one action:
+
+- **report crons** (voc, TeaBus-VOC, th-ops, style-superman, media-sorter,
+  GOLD, KaiOS, benchmark-radar, ig-insights-sync) push a one-line status —
+  wired `if: failure()`, so a healthy run stays silent and only real failures
+  ping (with a run link).
+- **collector bots** (short-video-bot, clip-collector, feed-collector) route
+  their drain-failure alerts here too, replacing per-repo hardcoded curls.
+
+## Heartbeat — the watcher's watcher (`fleet-digest`)
+
+Because the action is **fail-soft**, a broken notifier is *silent*: if the bot
+token is revoked, Telegram breaks, or this action regresses, every consumer just
+skips and Kai never learns notifications died. `fleet-digest` closes that blind
+spot.
+
+`.github/workflows/fleet-digest.yml` runs daily (07:00 Asia/Taipei) and
+`scripts/fleet_digest.py` reads each monitored cron's latest run, then sends
+**one** message:
+
+- all-green → a single "後端一切正常" line (no status dump),
+- otherwise → only the exceptions (failed / stale / unreadable), in plain
+  language with a run link.
+
+Its mere arrival **is** the heartbeat: no message one morning → the pipe is dead.
+Needs a `FLEET_READ_TOKEN` secret (fine-grained PAT, **Actions: Read-only**
+across the fleet) plus this repo's own `KAI_NOTIFY_BOT_TOKEN` / `KAI_NOTIFY_CHAT_ID`.
+Absent the PAT it sends a degraded heartbeat that says so.
 
 ## Layout
 
 ```
-action.yml              composite action (uses: pei760730/kai-notify@main)
-scripts/action_send.py  action entry — imports the python core (one source of truth)
-python/kai_notify/      pip-installable / vendorable Python helper
-.github/workflows/ci.yml  pytest + action self-test
+action.yml                    composite action (uses: pei760730/kai-notify@main)
+scripts/action_send.py        action entry — imports the python core (one source of truth)
+scripts/fleet_digest.py       daily fleet health digest + heartbeat
+python/kai_notify/            pip-installable / vendorable Python helper
+python/tests/                 pytest suite (core + fleet-digest)
+.github/workflows/ci.yml      pytest + action self-test
+.github/workflows/fleet-digest.yml  the daily heartbeat cron
 ```
 
 ## Develop
