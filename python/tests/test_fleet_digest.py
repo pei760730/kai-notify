@@ -10,6 +10,8 @@ import importlib.util
 import os
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _SCRIPT = os.path.normpath(
     os.path.join(_HERE, "..", "..", "scripts", "fleet_digest.py")
@@ -25,6 +27,12 @@ def _load():
 
 fd = _load()
 _NOW = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_state(tmp_path, monkeypatch):
+    """Never touch the repo's real state/ file during tests."""
+    monkeypatch.setattr(fd, "_STATE_FILE", str(tmp_path / "fleet_history.json"))
 
 
 def _run(conclusion, mins_ago, url="https://gh/run/1"):
@@ -106,7 +114,9 @@ def _capture_notify(monkeypatch):
 
 def test_main_all_green_is_one_reassuring_line(monkeypatch):
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
-    monkeypatch.setattr(fd, "_latest_run", lambda r, w, t: _recent("success", 10))
+    monkeypatch.setattr(
+        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+    )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     text = box["text"]
@@ -121,8 +131,8 @@ def test_main_lists_only_problems(monkeypatch):
     def fake_latest(repo, wf, token):
         # Make exactly one monitored entry fail; the rest succeed (fresh).
         if repo == "th-ops" and wf == "remind.yml":
-            return _recent("failure", 10, url="https://gh/run/BAD")
-        return _recent("success", 10)
+            return (_recent("failure", 10, url="https://gh/run/BAD"), None)
+        return (_recent("success", 10), None)
 
     monkeypatch.setattr(fd, "_latest_run", fake_latest)
     box = _capture_notify(monkeypatch)
@@ -133,6 +143,50 @@ def test_main_lists_only_problems(monkeypatch):
     assert "https://gh/run/BAD" in text
     # the other N-1 are summarized, not listed
     assert f"其他 {len(fd.MONITORED) - 1} 個都正常" in text
+
+
+def test_main_degraded_reads_do_not_fake_all_green(monkeypatch):
+    # (a) honesty: if most reads fail on auth, say so — never imply health.
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(fd, "_latest_run", lambda r, w, t: (None, "auth"))
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    text = box["text"]
+    assert "一切正常" not in text
+    assert "報不準" in text and "FLEET_READ_TOKEN" in text
+    # history must NOT be written on a degraded run
+    assert not os.path.exists(fd._STATE_FILE)
+
+
+def test_main_streak_suffix_from_history(monkeypatch):
+    # (b) memory: a cron failing again shows "(連 N 天)".
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd, "_load_history", lambda: {"th-ops/remind.yml": ["fail", "fail"]}
+    )
+
+    def fake_latest(repo, wf, token):
+        if repo == "th-ops" and wf == "remind.yml":
+            return (_recent("failure", 10), None)
+        return (_recent("success", 10), None)
+
+    monkeypatch.setattr(fd, "_latest_run", fake_latest)
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "連 3 天" in box["text"]  # 2 prior + today
+
+
+def test_main_green_streak_shown_when_long(monkeypatch):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd, "_load_history", lambda: {"_fleet": ["green", "green", "green"]}
+    )
+    monkeypatch.setattr(
+        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+    )
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "連續 4 天全綠" in box["text"]  # 3 prior + today
 
 
 def test_main_degraded_when_no_pat(monkeypatch):

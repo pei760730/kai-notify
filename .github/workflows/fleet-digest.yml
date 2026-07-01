@@ -7,9 +7,10 @@ on:
     - cron: "0 23 * * *" # 07:00 Asia/Taipei
   workflow_dispatch: {}
 
-# 只讀,且跨 repo 讀取靠 FLEET_READ_TOKEN(PAT),預設 GITHUB_TOKEN 不夠。
+# contents:write 是為了把 state/fleet_history.json 回寫(digest 靠它報趨勢/連敗)。
+# 跨 repo 讀 run 狀態另靠 FLEET_READ_TOKEN(PAT),預設 GITHUB_TOKEN 不夠。
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: fleet-digest
@@ -30,3 +31,15 @@ jobs:
           FLEET_READ_TOKEN: ${{ secrets.FLEET_READ_TOKEN }}
           KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
           KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
+      - name: Persist fleet history (non-fatal)
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/fleet_history.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no history change"
+          else
+            git commit -m "chore: update fleet history [skip ci]"
+            git pull --rebase origin main && git push || echo "history push skipped (non-fatal)"
+          fi
