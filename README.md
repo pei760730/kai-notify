@@ -139,3 +139,18 @@ python/tests/                 pytest suite (core + fleet-digest)
 ```bash
 cd python && pip install pytest && pytest -q
 ```
+
+## Releasing
+
+Consumers pin **`pei760730/kai-notify@v1`** — a moving major tag, not `@main`.
+So a merge to `main` does **not** reach the fleet until you move the tag:
+
+```bash
+git tag -f v1        # point v1 at the new main
+git push -f origin v1
+```
+
+Cut a new immutable point release for anything notable (`git tag -a v1.1.0 … &&
+git push origin v1.1.0` + `gh release create`). Only bump the *major* (`v2`) on a
+breaking change, and migrate consumers deliberately — the whole point of the pin
+is that `main` can move without silently changing 14 repos' behavior.
