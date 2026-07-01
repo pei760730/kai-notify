@@ -1,0 +1,47 @@
+{
+ "GOLD-ContentSystem/adoption-metrics.yml": [
+  "ok"
+ ],
+ "KaiOS-ContentSystem/adoption-metrics.yml": [
+  "ok"
+ ],
+ "KaiOS-ContentSystem/ig-sheet-sync.yml": [
+  "ok"
+ ],
+ "TeaBus-VOC/daily.yml": [
+  "ok"
+ ],
+ "_fleet": [
+  "problem"
+ ],
+ "benchmark-radar/radar-watchdog.yml": [
+  "ok"
+ ],
+ "clip-collector/collect.yml": [
+  "stale"
+ ],
+ "feed-collector/collect.yml": [
+  "stale"
+ ],
+ "ig-insights-sync/sync.yml": [
+  "ok"
+ ],
+ "media-sorter/ytdlp-weekly-check.yml": [
+  "fail"
+ ],
+ "short-video-bot/collect.yml": [
+  "stale"
+ ],
+ "style-superman/health.yml": [
+  "ok"
+ ],
+ "th-ops/expo-pull.yml": [
+  "ok"
+ ],
+ "th-ops/remind.yml": [
+  "fail"
+ ],
+ "voc/daily.yml": [
+  "ok"
+ ]
+}
