@@ -1,0 +1,32 @@
+name: fleet-digest
+
+# 每天一則全 fleet cron 健康摘要 + heartbeat。見 scripts/fleet_digest.py 開頭說明。
+# 沒收到這則 = 通知管線死了(fail-soft 的靜音盲區靠這支戳破)。
+on:
+  schedule:
+    - cron: "0 23 * * *" # 07:00 Asia/Taipei
+  workflow_dispatch: {}
+
+# 只讀,且跨 repo 讀取靠 FLEET_READ_TOKEN(PAT),預設 GITHUB_TOKEN 不夠。
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-digest
+  cancel-in-progress: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Send fleet digest (fail-soft)
+        run: python scripts/fleet_digest.py || true
+        env:
+          # 跨 repo 讀 Actions run 狀態用的 PAT(fine-grained,Actions: Read-only)。
+          FLEET_READ_TOKEN: ${{ secrets.FLEET_READ_TOKEN }}
+          KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
+          KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
