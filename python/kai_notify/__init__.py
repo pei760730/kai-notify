@@ -43,12 +43,27 @@ _TG_MAX = 4096
 _TRUNC_MARK = "…(truncated)"
 
 
+def _utf16_len(text: str) -> int:
+    # Telegram counts a message's length in UTF-16 code units, NOT code points:
+    # every astral char (most emoji, e.g. 🚨) is 2 units. Counting code points
+    # under-counts, so an emoji-heavy message could still 400 and vanish.
+    return len(text.encode("utf-16-le")) // 2
+
+
 def _clip(text: str) -> str:
-    """Clip to Telegram's hard limit, by code point (never splits a CJK char
-    or emoji), leaving room for a visible truncation marker."""
-    if len(text) <= _TG_MAX:
+    """Clip to Telegram's 4096 UTF-16-unit limit, iterating by code point so a
+    character (or surrogate pair) is never split, leaving room for a marker."""
+    if _utf16_len(text) <= _TG_MAX:
         return text
-    return text[: _TG_MAX - len(_TRUNC_MARK)].rstrip() + _TRUNC_MARK
+    budget = _TG_MAX - len(_TRUNC_MARK)  # marker is all-BMP: len == UTF-16 units
+    kept, used = [], 0
+    for ch in text:
+        w = 2 if ord(ch) > 0xFFFF else 1
+        if used + w > budget:
+            break
+        kept.append(ch)
+        used += w
+    return "".join(kept).rstrip() + _TRUNC_MARK
 
 
 def _failure_hint(code: int, description: str) -> str:

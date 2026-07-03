@@ -113,6 +113,19 @@ def test_long_message_is_clipped_by_codepoint(monkeypatch):
     assert text[: -len("…(truncated)")].strip("漢") == ""
 
 
+def test_clip_counts_utf16_units_not_codepoints(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    # 3000 astral emoji = 3000 code points (< 4096) but 6000 UTF-16 units
+    # (> 4096). Code-point clipping would wave it through and Telegram would 400.
+    assert kai_notify.notify("🚨" * 3000) is True
+    text = sent["body"]["text"]
+    assert len(text.encode("utf-16-le")) // 2 <= 4096
+    assert text.endswith("…(truncated)")
+    # no split surrogate pair: re-encoding round-trips cleanly
+    assert text.encode("utf-16-le").decode("utf-16-le") == text
+
+
 def test_200_with_ok_false_is_not_a_success(monkeypatch):
     _creds(monkeypatch)
 
