@@ -2,9 +2,11 @@
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "KaiOS-ContentSystem/adoption-metrics.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -12,9 +14,11 @@
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "TeaBus-VOC/daily.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -22,9 +26,11 @@
  "_fleet": [
   "problem",
   "problem",
+  "problem",
   "problem"
  ],
  "benchmark-radar/radar-watchdog.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -32,14 +38,17 @@
  "clip-collector/collect.yml": [
   "stale",
   "ok",
+  "ok",
   "ok"
  ],
  "feed-collector/collect.yml": [
   "stale",
   "ok",
+  "ok",
   "ok"
  ],
  "ig-insights-sync/sync.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -47,19 +56,23 @@
  "media-sorter/ytdlp-weekly-check.yml": [
   "fail",
   "fail",
+  "ok",
   "ok"
  ],
  "short-video-bot/collect.yml": [
   "stale",
   "ok",
-  "ok"
+  "ok",
+  "stale"
  ],
  "style-superman/health.yml": [
   "ok",
   "ok",
+  "fail",
   "fail"
  ],
  "th-ops/expo-pull.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -67,11 +80,13 @@
  "th-ops/remind.yml": [
   "fail",
   "fail",
+  "fail",
   "fail"
  ],
  "voc/daily.yml": [
   "ok",
   "ok",
+  "fail",
   "fail"
  ]
 }
