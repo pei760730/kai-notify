@@ -3,9 +3,11 @@
   "ok",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "KaiOS-ContentSystem/adoption-metrics.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -15,9 +17,11 @@
   "ok",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "TeaBus-VOC/daily.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -27,9 +31,11 @@
   "problem",
   "problem",
   "problem",
-  "problem"
+  "problem",
+  "green"
  ],
  "benchmark-radar/radar-watchdog.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -39,15 +45,18 @@
   "stale",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "feed-collector/collect.yml": [
   "stale",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "ig-insights-sync/sync.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -57,21 +66,25 @@
   "fail",
   "fail",
   "ok",
+  "ok",
   "ok"
  ],
  "short-video-bot/collect.yml": [
   "stale",
   "ok",
   "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "style-superman/health.yml": [
   "ok",
   "ok",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "th-ops/expo-pull.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -81,12 +94,14 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "voc/daily.yml": [
   "ok",
   "ok",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ]
 }
