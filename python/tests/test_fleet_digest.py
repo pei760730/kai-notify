@@ -189,6 +189,24 @@ def test_main_green_streak_shown_when_long(monkeypatch):
     assert "連續 4 天全綠" in box["text"]  # 3 prior + today
 
 
+def test_main_history_is_idempotent_within_a_day(monkeypatch):
+    # A second same-day run (agent test / workflow_dispatch) must still SEND but
+    # must NOT append another sample — else streak/flapping memory inflates.
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+    )
+    _capture_notify(monkeypatch)
+    key = f"{fd.MONITORED[0][0]}/{fd.MONITORED[0][1]}"
+
+    assert fd.main() == 0
+    assert len(fd._load_history()[key]) == 1  # recorded once
+    assert fd.main() == 0  # same-day re-run
+    hist = fd._load_history()
+    assert len(hist[key]) == 1  # not doubled
+    assert hist["_last_date"]  # stamped for the idempotency guard
+
+
 def test_main_degraded_when_no_pat(monkeypatch):
     monkeypatch.delenv("FLEET_READ_TOKEN", raising=False)
     box = _capture_notify(monkeypatch)

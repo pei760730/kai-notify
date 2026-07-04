@@ -350,12 +350,20 @@ def main() -> int:
     sent = notify(msg)
 
     # (b) 更新歷史:append 今天每條 kind + fleet 整體,裁到最近 N 天。
-    for a in assessed:
-        history[a["key"]] = (history.get(a["key"], []) + [a["kind"]])[-_HISTORY_LEN:]
-    history["_fleet"] = (
-        history.get("_fleet", []) + ["problem" if problems else "green"]
-    )[-_HISTORY_LEN:]
-    _save_history(history)
+    #     日期冪等(Taipei 日):同一天二次觸發(agent 測試 / workflow_dispatch)不再
+    #     重灌一格,否則把 streak/flapping 記憶灌失真——而這條記憶迴圈的唯一價值就是
+    #     分辨「慢性 vs 新問題」。訊息照送(上面已 notify),只有歷史 append 每天一次。
+    today = now.astimezone(timezone(timedelta(hours=8))).date().isoformat()
+    if history.get("_last_date") != today:
+        for a in assessed:
+            history[a["key"]] = (history.get(a["key"], []) + [a["kind"]])[
+                -_HISTORY_LEN:
+            ]
+        history["_fleet"] = (
+            history.get("_fleet", []) + ["problem" if problems else "green"]
+        )[-_HISTORY_LEN:]
+        history["_last_date"] = today
+        _save_history(history)
 
     print("fleet-digest:", "sent." if sent else "skipped/failed (fail-soft).")
     return 0

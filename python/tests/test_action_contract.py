@@ -119,3 +119,24 @@ def test_action_send_routes_metric_to_notify_metric(monkeypatch):
 
     assert action_send.main() == 0
     assert calls == [("notify_metric", "rows", "0", 1.0)]
+
+
+# The action.yml env: block wires each input into the KN_* var action_send reads.
+# The tests above prove KN_* -> notify* routing; this proves inputs -> KN_* — the
+# unguarded seam. A typo like `KN_TEXT: ${{ inputs.txt }}` leaves every consumer
+# silently sending blanks: CI green, ~12 repos muted.
+EXPECTED_ENV_GLUE = (
+    "KN_TEXT: ${{ inputs.text }}",
+    "KN_TITLE: ${{ inputs.title }}",
+    "KN_ITEMS: ${{ inputs.items }}",
+    "KN_LABEL: ${{ inputs.label }}",
+    "KN_VALUE: ${{ inputs.value }}",
+    "KN_FLOOR: ${{ inputs.floor }}",
+)
+
+
+def test_action_yml_wires_inputs_to_kn_env():
+    with open(_ACTION_YML, encoding="utf-8") as f:
+        src = f.read()
+    for mapping in EXPECTED_ENV_GLUE:
+        assert mapping in src, f"action.yml input->env glue broken/renamed: {mapping!r}"

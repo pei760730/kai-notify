@@ -1,0 +1,4 @@
+# Keep line endings LF in the repo. The contract test parses action.yml with
+# exact-newline comparisons, and the sender is edited from Windows (cp950/CRLF) —
+# pinning eol=lf stops a CRLF checkout from tripping local pytest.
+* text=auto eol=lf

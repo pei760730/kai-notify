@@ -31,7 +31,7 @@ Every consumer needs two values in its environment/secrets:
 
 | name | value |
 |---|---|
-| `KAI_NOTIFY_BOT_TOKEN` | the bot token (same bot as the collectors) |
+| `KAI_NOTIFY_BOT_TOKEN` | the dedicated notify bot's token |
 | `KAI_NOTIFY_CHAT_ID`   | the owner chat id |
 
 Set them once per repo (use Bash, **not** PowerShell — PowerShell mangles tokens
@@ -40,6 +40,14 @@ with a BOM):
 ```bash
 printf '%s' "<bot-token>" | gh secret set KAI_NOTIFY_BOT_TOKEN -R pei760730/<repo>
 printf '%s' "<chat-id>"   | gh secret set KAI_NOTIFY_CHAT_ID   -R pei760730/<repo>
+```
+
+After setting the secrets, **verify the pipe once** — the sender is fail-soft, so a
+wrong secret (or a bot you never `/start`-ed) fails *silently*. Send one real ping
+and confirm it lands in Telegram before relying on it:
+
+```bash
+python -c "from kai_notify import notify; notify('kai-notify wired: <repo>')"
 ```
 
 ### A) Any GitHub Actions workflow (Python / Node / pure-yml) — the universal one-liner
@@ -109,9 +117,14 @@ The same is available to yml-only workflows via the action:
     KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
   with:
     label: "voc daily"
-    value: ${{ steps.run.outputs.rows }}
+    value: ${{ steps.run.outputs.rows || '0' }}
     floor: "1"
 ```
+
+> ⚠️ Give `value` a `|| '0'` fallback. If the upstream step is skipped or forgets
+> to set its output, `value` renders to `''`, which reads as *"no metric given"* and
+> **sends nothing** — the exact silent-empty case `notify_metric` exists to catch.
+> `|| '0'` makes a truly empty run fall below `floor` and alert as intended.
 
 > Node / TypeScript consumers: use surface **A** (the composite action) from your
 > workflow. There is no separate npm package — a parallel TS implementation was
