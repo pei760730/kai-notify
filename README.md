@@ -45,7 +45,7 @@ printf '%s' "<chat-id>"   | gh secret set KAI_NOTIFY_CHAT_ID   -R pei760730/<rep
 ### A) Any GitHub Actions workflow (Python / Node / pure-yml) — the universal one-liner
 
 ```yaml
-- uses: pei760730/kai-notify@main
+- uses: pei760730/kai-notify@v1
   env:
     KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
     KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
@@ -56,7 +56,7 @@ printf '%s' "<chat-id>"   | gh secret set KAI_NOTIFY_CHAT_ID   -R pei760730/<rep
 Digest form:
 
 ```yaml
-- uses: pei760730/kai-notify@main
+- uses: pei760730/kai-notify@v1
   env:
     KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
     KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
@@ -75,7 +75,7 @@ Node, and yml-only repos alike — even if you never import a library.
 Install (stdlib-only, zero deps), or just vendor `python/kai_notify/__init__.py`:
 
 ```bash
-pip install "git+https://github.com/pei760730/kai-notify@main#subdirectory=python"
+pip install "git+https://github.com/pei760730/kai-notify@v1#subdirectory=python"
 ```
 
 ```python
@@ -173,7 +173,7 @@ Absent the PAT it sends a degraded heartbeat that says so.
 ## Layout
 
 ```
-action.yml                    composite action (uses: pei760730/kai-notify@main)
+action.yml                    composite action (uses: pei760730/kai-notify@v1)
 scripts/action_send.py        action entry — imports the python core (one source of truth)
 scripts/fleet_digest.py       daily fleet health digest + heartbeat
 python/kai_notify/            pip-installable / vendorable Python helper
