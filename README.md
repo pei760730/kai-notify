@@ -16,7 +16,7 @@ shared core that lets **any repo, in one line, speak to Kai in Telegram**.
   code point) instead of being rejected and swallowed; failures log Telegram's
   own `description` + a root-cause hint (e.g. "bot was never /start-ed").
 - **three calls** — `notify(text)`, `notify_digest(title, items)`, and
-  `notify_metric(label, value, floor)` (the last flags a *green-but-empty* run —
+  `notify_metric(label, value, floor, unit)` (the last flags a *green-but-empty* run —
   see below).
 
 It speaks through a **dedicated notify bot** (separate from the collector bots),
@@ -119,6 +119,7 @@ The same is available to yml-only workflows via the action:
     label: "voc daily"
     value: ${{ steps.run.outputs.rows || '0' }}
     floor: "1"
+    unit: "篇" # optional — shown in the alert
 ```
 
 > ⚠️ Give `value` a `|| '0'` fallback. If the upstream step is skipped or forgets
@@ -214,4 +215,4 @@ git push -f origin v1
 Cut a new immutable point release for anything notable (`git tag -a v1.1.0 … &&
 git push origin v1.1.0` + `gh release create`). Only bump the *major* (`v2`) on a
 breaking change, and migrate consumers deliberately — the whole point of the pin
-is that `main` can move without silently changing 14 repos' behavior.
+is that `main` can move without silently changing every consumer's behavior.

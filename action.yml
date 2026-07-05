@@ -30,6 +30,10 @@ inputs:
     description: "Minimum healthy value; below it sends a 'green but empty' alert. Default 1."
     required: false
     default: ""
+  unit:
+    description: "Optional unit shown in the metric alert (e.g. rows, 篇). Used with label/value."
+    required: false
+    default: ""
   bot-token:
     description: "Telegram bot token. Defaults to env/secret KAI_NOTIFY_BOT_TOKEN."
     required: false
@@ -54,5 +58,6 @@ runs:
         KN_LABEL: ${{ inputs.label }}
         KN_VALUE: ${{ inputs.value }}
         KN_FLOOR: ${{ inputs.floor }}
+        KN_UNIT: ${{ inputs.unit }}
       run: |
         python3 "$GITHUB_ACTION_PATH/scripts/action_send.py" || true

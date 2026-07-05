@@ -25,6 +25,7 @@ def main() -> int:
     ]
     label = (os.environ.get("KN_LABEL") or "").strip()
     value = (os.environ.get("KN_VALUE") or "").strip()
+    unit = (os.environ.get("KN_UNIT") or "").strip()
 
     if text:
         ok = notify(text)
@@ -37,7 +38,7 @@ def main() -> int:
             floor = float((os.environ.get("KN_FLOOR") or "").strip() or "1")
         except ValueError:
             floor = 1.0
-        alerted = notify_metric(label, value, floor=floor)
+        alerted = notify_metric(label, value, floor=floor, unit=unit)
         print(
             "kai-notify: metric below floor -> alert sent."
             if alerted

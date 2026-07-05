@@ -21,8 +21,9 @@
 
 - secret:`KAI_NOTIFY_BOT_TOKEN` + `KAI_NOTIFY_CHAT_ID`(每 repo 各設一份;個人帳號
   的 secret 不能跨 repo 共用)。
-- action inputs:`text` | `title`+`items` | `label`+`value`(+`floor`,green-but-empty
+- action inputs:`text` | `title`+`items` | `label`+`value`(+`floor`+`unit`,green-but-empty
   告警) | `bot-token`/`chat-id`(覆蓋 env)。**改 input 名 = 破契約、12 repo 靜默失聲。**
+  input 集合由 `test_action_contract.py` 釘死(含 inputs→KN_* 膠水),改動要同步更新。
 - 消費端 pin **`@v1`**(移動式 major tag),不是 `@main`;放版要
   `git tag -f v1 && git push -f origin v1` —— main 動不等於 fleet 動。
 

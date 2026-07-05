@@ -17,6 +17,7 @@ EXPECTED_INPUTS = {
     "label",
     "value",
     "floor",
+    "unit",
     "bot-token",
     "chat-id",
 }
@@ -28,6 +29,7 @@ ACTION_ENV_KEYS = {
     "KN_LABEL",
     "KN_VALUE",
     "KN_FLOOR",
+    "KN_UNIT",
 }
 
 
@@ -85,8 +87,8 @@ def _capture_senders(monkeypatch):
     monkeypatch.setattr(
         action_send,
         "notify_metric",
-        lambda label, value, floor=1: (
-            calls.append(("notify_metric", label, value, floor)) or True
+        lambda label, value, floor=1, unit="": (
+            calls.append(("notify_metric", label, value, floor, unit)) or True
         ),
     )
     return calls
@@ -118,7 +120,18 @@ def test_action_send_routes_metric_to_notify_metric(monkeypatch):
     monkeypatch.setenv("KN_VALUE", "0")
 
     assert action_send.main() == 0
-    assert calls == [("notify_metric", "rows", "0", 1.0)]
+    assert calls == [("notify_metric", "rows", "0", 1.0, "")]
+
+
+def test_action_send_passes_unit_to_notify_metric(monkeypatch):
+    _clear_action_env(monkeypatch)
+    calls = _capture_senders(monkeypatch)
+    monkeypatch.setenv("KN_LABEL", "voc daily")
+    monkeypatch.setenv("KN_VALUE", "0")
+    monkeypatch.setenv("KN_UNIT", "篇")
+
+    assert action_send.main() == 0
+    assert calls == [("notify_metric", "voc daily", "0", 1.0, "篇")]
 
 
 # The action.yml env: block wires each input into the KN_* var action_send reads.
@@ -132,6 +145,7 @@ EXPECTED_ENV_GLUE = (
     "KN_LABEL: ${{ inputs.label }}",
     "KN_VALUE: ${{ inputs.value }}",
     "KN_FLOOR: ${{ inputs.floor }}",
+    "KN_UNIT: ${{ inputs.unit }}",
 )
 
 
