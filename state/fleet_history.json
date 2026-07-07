@@ -39,12 +39,12 @@
   "problem",
   "problem",
   "problem",
-  "problem",
   "green",
   "green",
-  "green"
+  "green",
+  "problem"
  ],
- "_last_date": "2026-07-06",
+ "_last_date": "2026-07-07",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,7 +55,7 @@
   "ok"
  ],
  "clip-collector/collect.yml": [
-  "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -64,7 +64,7 @@
   "ok"
  ],
  "feed-collector/collect.yml": [
-  "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -83,7 +83,7 @@
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -91,19 +91,19 @@
   "ok"
  ],
  "short-video-bot/collect.yml": [
-  "stale",
   "ok",
   "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok"
  ],
  "style-superman/health.yml": [
   "ok",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok"
@@ -121,18 +121,18 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
  ],
  "voc/daily.yml": [
   "ok",
-  "ok",
   "fail",
   "fail",
   "ok",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ]
 }
