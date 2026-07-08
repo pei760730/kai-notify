@@ -38,13 +38,13 @@
  "_fleet": [
   "problem",
   "problem",
+  "green",
+  "green",
+  "green",
   "problem",
-  "green",
-  "green",
-  "green",
-  "problem"
+  "green"
  ],
- "_last_date": "2026-07-07",
+ "_last_date": "2026-07-08",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -82,7 +82,7 @@
   "ok"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -92,17 +92,17 @@
  ],
  "short-video-bot/collect.yml": [
   "ok",
-  "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
   "ok"
  ],
  "style-superman/health.yml": [
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok",
@@ -120,19 +120,19 @@
  "th-ops/remind.yml": [
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
   "ok"
  ],
  "voc/daily.yml": [
-  "ok",
   "fail",
   "fail",
   "ok",
   "ok",
   "ok",
-  "fail"
+  "fail",
+  "ok"
  ]
 }
