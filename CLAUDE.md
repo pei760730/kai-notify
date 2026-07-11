@@ -31,7 +31,7 @@
 
 - **砍 TS 平行實作**(e2ed2d8):零 import、雙核維護是純負債。Node 消費端走 action。
 - **fleet-digest = 看門狗的看門狗**(PR #1/#7):action fail-soft ⇒ 壞掉是靜默的;
-  每天 07:00 輪詢 14 條 cron 狀態、一天一則(全綠一行 / 只列出事的),history 存
+  每天 07:00 輪詢 16 條 cron 狀態(2026-07-11 補 gdrive 月審 + th-customs 月掃)、一天一則(全綠一行 / 只列出事的),history 存
   `state/fleet_history.json`(git 當 store,不引新平台)。⚠ **殘留盲點**:它用同一隻
   bot 發,bot 死了它也發不出「我死了」;目前靠「訊息沒來 = 管線死」的缺席訊號
   mitigate,刻意不加 out-of-band 通道(避免過度工程)。
