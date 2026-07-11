@@ -22,7 +22,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -38,13 +38,13 @@
  "_fleet": [
   "green",
   "green",
-  "green",
   "problem",
   "green",
+  "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-10",
+ "_last_date": "2026-07-11",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -77,7 +77,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -129,10 +129,10 @@
  "voc/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
   "ok",
   "ok",
+  "fail",
   "fail"
  ]
 }
