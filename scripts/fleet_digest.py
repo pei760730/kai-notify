@@ -47,6 +47,10 @@ MONITORED = [
     ("TeaBus-VOC", "daily.yml", "TeaBus-VOC daily", "daily"),
     ("th-ops", "remind.yml", "th-ops remind", "daily"),
     ("th-ops", "expo-pull.yml", "th-ops expo-pull", "monthly"),
+    # 兩條月度 cron 補進名單(2026-07-11):蓋掉「紅了沒人看見」實測盲區 ——
+    # gdrive-organizer 7/1 排程紅了 9 天無人知;th-customs-scan 6/25 崩掉整月沒發現。
+    ("th-customs-scan", "scan.yml", "th-customs 月掃", "monthly"),
+    ("gdrive-organizer", "monthly-drive-audit.yml", "gdrive 月審", "monthly"),
     ("style-superman", "health.yml", "style-superman health", "weekly"),
     ("media-sorter", "ytdlp-weekly-check.yml", "media-sorter ytdlp", "weekly"),
     ("GOLD-ContentSystem", "adoption-metrics.yml", "GOLD adoption", "weekly"),
