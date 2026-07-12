@@ -21,7 +21,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -37,14 +37,14 @@
  ],
  "_fleet": [
   "green",
-  "green",
   "problem",
   "green",
+  "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-11",
+ "_last_date": "2026-07-12",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -72,11 +72,14 @@
   "ok",
   "ok"
  ],
+ "gdrive-organizer/monthly-drive-audit.yml": [
+  "ok"
+ ],
  "ig-insights-sync/sync.yml": [
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -108,6 +111,9 @@
   "ok",
   "ok"
  ],
+ "th-customs-scan/scan.yml": [
+  "ok"
+ ],
  "th-ops/expo-pull.yml": [
   "ok",
   "ok",
@@ -124,15 +130,15 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "voc/daily.yml": [
   "ok",
-  "ok",
   "fail",
   "ok",
   "ok",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ]
 }
