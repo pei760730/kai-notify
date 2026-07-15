@@ -142,8 +142,9 @@ Across Kai's backend, every scheduled cron reports through this one action:
   GOLD, KaiOS, benchmark-radar, ig-insights-sync) push a one-line status —
   wired `if: failure()`, so a healthy run stays silent and only real failures
   ping (with a run link).
-- **collector bots** (short-video-bot, clip-collector, feed-collector) route
-  their drain-failure alerts here too, replacing per-repo hardcoded curls.
+- **collector** (one repo, three matrix targets voc/tbvoc/of; formerly
+  short-video-bot + clip-collector + feed-collector, merged 2026-07-15) routes
+  its drain-failure alerts here too, replacing per-repo hardcoded curls.
 
 ## Heartbeat — the watcher's watcher (`fleet-digest`)
 
