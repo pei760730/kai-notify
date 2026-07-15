@@ -54,24 +54,6 @@
   "ok",
   "ok"
  ],
- "clip-collector/collect.yml": [
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "stale"
- ],
- "feed-collector/collect.yml": [
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "stale"
- ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
   "ok",
@@ -88,15 +70,6 @@
   "fail"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok"
- ],
- "short-video-bot/collect.yml": [
   "ok",
   "ok",
   "ok",

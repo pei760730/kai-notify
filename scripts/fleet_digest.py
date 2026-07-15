@@ -56,9 +56,10 @@ MONITORED = [
     ("GOLD-ContentSystem", "adoption-metrics.yml", "GOLD adoption", "weekly"),
     ("KaiOS-ContentSystem", "adoption-metrics.yml", "KaiOS adoption", "weekly"),
     ("KaiOS-ContentSystem", "ig-sheet-sync.yml", "KaiOS ig-sync", "daily"),
-    ("short-video-bot", "collect.yml", "short-video-bot collect", "frequent"),
-    ("clip-collector", "collect.yml", "clip-collector collect", "frequent"),
-    ("feed-collector", "collect.yml", "feed-collector collect", "frequent"),
+    # #9 三併一(2026-07-15):short-video-bot 改名 collector,clip-collector/feed-collector
+    # 併入後 archive。三條收集線=同一條 collect.yml 的三個 matrix job(fail-fast:false,
+    # 任一 job 紅→run 紅),一筆監控即全覆蓋;舊三筆會對 archived repo 報假 stale。
+    ("collector", "collect.yml", "collector collect(voc/tbvoc/of)", "frequent"),
 ]
 
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
