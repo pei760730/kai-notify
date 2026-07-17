@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-16",
+ "_last_date": "2026-07-17",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,9 +55,11 @@
   "ok"
  ],
  "collector/collect.yml": [
+  "ok",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -96,6 +98,7 @@
   "ok",
   "fail",
   "fail",
+  "fail",
   "fail"
  ],
  "th-ops/expo-pull.yml": [
@@ -109,8 +112,8 @@
  ],
  "th-ops/remind.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -118,10 +121,10 @@
  ],
  "voc/daily.yml": [
   "fail",
+  "ok",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "ok",
   "fail",
   "fail"
  ]
