@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-18",
+ "_last_date": "2026-07-19",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,6 +55,7 @@
   "ok"
  ],
  "collector/collect.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -97,7 +98,7 @@
  ],
  "th-customs-scan/scan.yml": [
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -114,7 +115,7 @@
   "ok"
  ],
  "th-ops/remind.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -125,10 +126,10 @@
  "voc/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ]
 }
