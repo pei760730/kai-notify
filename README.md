@@ -12,8 +12,9 @@ shared core that lets **any repo, in one line, speak to Kai in Telegram**.
 - **fail-closed** — sends only to the single configured chat id. Token and chat
   id come from env/secret, never hardwired. Repo is public; no secrets in code.
 - **plain text** — no MarkdownV2 (its escaping silently drops messages).
-- **no silent loss** — messages over Telegram's 4096-char limit are clipped (by
-  code point) instead of being rejected and swallowed; failures log Telegram's
+- **no silent loss** — messages over Telegram's 4096 limit are clipped (counted
+  in UTF-16 units, as Telegram counts — an emoji is 2, so long emoji-heavy
+  messages aren't mis-measured) instead of being rejected and swallowed; failures log Telegram's
   own `description` + a root-cause hint (e.g. "bot was never /start-ed").
 - **three calls** — `notify(text)`, `notify_digest(title, items)`, and
   `notify_metric(label, value, floor, unit)` (the last flags a *green-but-empty* run —
@@ -136,7 +137,7 @@ The same is available to yml-only workflows via the action:
 
 ## Live consumers
 
-Across Kai's backend, every scheduled cron reports through this one action:
+Across Kai's backend, the scheduled crons report through this one action:
 
 - **report crons** (voc, TeaBus-VOC, th-ops, style-superman, media-sorter,
   GOLD, KaiOS, benchmark-radar, ig-insights-sync) push a one-line status —
@@ -145,6 +146,9 @@ Across Kai's backend, every scheduled cron reports through this one action:
 - **collector** (one repo, three matrix targets voc/tbvoc/of; formerly
   short-video-bot + clip-collector + feed-collector, merged 2026-07-15) routes
   its drain-failure alerts here too, replacing per-repo hardcoded curls.
+- two monthly crons (**gdrive-organizer** drive-audit, **th-customs-scan**) don't
+  consume the action — they alert via GitHub issues instead — but are still
+  watched by the fleet-digest below.
 
 ## Heartbeat — the watcher's watcher (`fleet-digest`)
 
