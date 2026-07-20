@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-19",
+ "_last_date": "2026-07-20",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,6 +55,7 @@
   "ok"
  ],
  "collector/collect.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -76,7 +77,7 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "unknown"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "ok",
@@ -85,7 +86,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "unknown"
  ],
  "style-superman/health.yml": [
   "ok",
@@ -97,7 +98,7 @@
   "ok"
  ],
  "th-customs-scan/scan.yml": [
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -125,11 +126,11 @@
  ],
  "voc/daily.yml": [
   "ok",
+  "fail",
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
-  "fail",
   "ok"
  ]
 }
