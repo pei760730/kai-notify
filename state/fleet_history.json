@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-20",
+ "_last_date": "2026-07-21",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,6 +55,7 @@
   "ok"
  ],
  "collector/collect.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -76,8 +77,8 @@
   "fail",
   "fail",
   "fail",
-  "fail",
-  "unknown"
+  "unknown",
+  "fail"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "ok",
@@ -85,8 +86,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "unknown"
+  "unknown",
+  "ok"
  ],
  "style-superman/health.yml": [
   "ok",
@@ -125,11 +126,11 @@
   "ok"
  ],
  "voc/daily.yml": [
+  "fail",
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
-  "fail",
   "ok",
   "ok"
  ]
