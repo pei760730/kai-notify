@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-22",
+ "_last_date": "2026-07-23",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -76,17 +76,17 @@
   "fail",
   "fail",
   "fail",
-  "fail",
   "unknown",
   "fail",
+  "ok",
   "ok"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "ok",
   "ok",
   "ok",
-  "ok",
   "unknown",
+  "ok",
   "ok",
   "ok"
  ],
@@ -129,10 +129,10 @@
  "voc/daily.yml": [
   "fail",
   "fail",
-  "fail",
   "ok",
   "ok",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ]
 }
