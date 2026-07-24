@@ -34,7 +34,7 @@ def _capture(monkeypatch):
 
 def _creds(monkeypatch):
     monkeypatch.setenv("KAI_NOTIFY_BOT_TOKEN", "123:abc")
-    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "660156312")
+    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "111111111")
 
 
 def test_notify_sends_text(monkeypatch):
@@ -42,7 +42,7 @@ def test_notify_sends_text(monkeypatch):
     sent = _capture(monkeypatch)
     assert kai_notify.notify("hello") is True
     assert sent["body"]["text"] == "hello"
-    assert sent["body"]["chat_id"] == "660156312"
+    assert sent["body"]["chat_id"] == "111111111"
     assert "bot123:abc/sendMessage" in sent["url"]
 
 
