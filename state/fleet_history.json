@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-23",
+ "_last_date": "2026-07-24",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -75,17 +75,17 @@
  "ig-insights-sync/sync.yml": [
   "fail",
   "fail",
-  "fail",
   "unknown",
   "fail",
+  "ok",
   "ok",
   "ok"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "ok",
   "ok",
-  "ok",
   "unknown",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -128,11 +128,11 @@
  ],
  "voc/daily.yml": [
   "fail",
+  "ok",
+  "ok",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "fail"
+  "ok"
  ]
 }
