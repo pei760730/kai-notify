@@ -168,7 +168,7 @@ def test_httperror_logs_description_and_hint(monkeypatch, caplog):
 
 
 # ── retry (bounded, budgeted, fail-soft) ─────────────────────────────────────
-import io  # noqa: E402
+import io
 
 
 def _http_error(code, body=b"{}"):

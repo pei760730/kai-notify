@@ -22,7 +22,7 @@ import random
 import time
 import urllib.error
 import urllib.request
-from typing import Iterable
+from collections.abc import Iterable
 
 __all__ = ["notify", "notify_digest", "notify_metric"]
 
@@ -97,7 +97,7 @@ def _retry_after(exc: urllib.error.HTTPError, raw: bytes) -> float | None:
         params = json.loads(raw.decode("utf-8")).get("parameters") or {}
         if params.get("retry_after") is not None:
             return float(params["retry_after"])
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110 - malformed body falls back to header
         pass
     try:
         header = exc.headers.get("Retry-After")
@@ -127,7 +127,7 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
         raw = b""
         try:
             raw = exc.read()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110 - unreadable error body stays empty
             pass
         # 429 (rate limit) and 5xx are transient → retry.
         if exc.code == 429 or exc.code >= 500:
