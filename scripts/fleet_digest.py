@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python")
 )
-from kai_notify import notify  # noqa: E402
+from kai_notify import notify
 
 OWNER = "pei760730"
 _API = (

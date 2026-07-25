@@ -14,7 +14,7 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python")
 )
 
-from kai_notify import notify, notify_digest, notify_metric  # noqa: E402
+from kai_notify import notify, notify_digest, notify_metric
 
 
 def main() -> int:
