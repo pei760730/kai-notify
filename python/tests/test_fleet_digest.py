@@ -91,10 +91,31 @@ def test_assess_unknown_when_unreadable():
     assert a["url"] == ""
 
 
-def test_assess_running_or_cancelled_not_a_problem():
-    # In-progress (conclusion None) and cancelled both mean "moving / not a failure".
+def test_assess_running_is_not_a_problem():
+    # In-progress (conclusion None) means "moving", not a failure.
     assert fd._assess("bot", "frequent", _run(None, 3), _NOW)["kind"] == "ok"
-    assert fd._assess("bot", "frequent", _run("cancelled", 3), _NOW)["kind"] == "ok"
+
+
+def test_assess_cancelled_is_a_problem():
+    # 2026-07-26 反轉先前的判讀(原 test_assess_running_or_cancelled_not_a_problem
+    # 把 cancelled 當「還在動」)。理由:job 層 `timeout-minutes` 逾時被殺，
+    # conclusion 是 cancelled 而不是 failure。一條每 10 分鐘跑的下載佇列卡到逾時，
+    # 對 owner 就是「這輪沒做完工作」，跟失敗同級 —— 而看門狗原本會回報「沒事」。
+    # 這正是 media-sorter 管線 2026-07-02～07-26 靜默死 24 天那類事故的同款盲區，
+    # 只是這次出現在監控器自己身上。
+    a = fd._assess("bot", "frequent", _run("cancelled", 3), _NOW)
+    assert a["kind"] == "fail"
+    # 措辭要讓「人為按停」和「跑失敗」分得出來，否則 owner 無法判斷該不該動手。
+    assert "中止" in a["detail"]
+
+
+def test_monitored_covers_media_sorter_download_queue():
+    # 名單缺口的迴歸釘子:本 repo 曾只監控 media-sorter 的 ytdlp 週檢，沒監控真正的
+    # 下載佇列 collector.yml，於是那條管線死 24 天而 digest 全綠。
+    entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
+    assert ("media-sorter", "collector.yml") in entries, (
+        "media-sorter 的下載佇列不在監控名單 —— 它死掉時 digest 會報全綠"
+    )
 
 
 def test_assess_frequent_stale_when_idle_too_long():

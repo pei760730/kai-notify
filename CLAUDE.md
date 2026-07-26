@@ -35,6 +35,15 @@
   `state/fleet_history.json`(git 當 store,不引新平台)。⚠ **殘留盲點**:它用同一隻
   bot 發,bot 死了它也發不出「我死了」;目前靠「訊息沒來 = 管線死」的缺席訊號
   mitigate,刻意不加 out-of-band 通道(避免過度工程)。
+- **cancelled 算失敗 + 補監控名單**(2026-07-26,帶具體事件重開封版):
+  (a) `_assess` 原本把 `cancelled` 併進「沒事」,但 job 層 `timeout-minutes` 逾時被殺
+  的 conclusion 就是 cancelled 而非 failure —— 卡到逾時對 owner 等於「這輪沒做完」。
+  (b) 名單原本只有 `media-sorter/ytdlp-weekly-check.yml`,沒有真正的下載佇列
+  `collector.yml`;該管線 2026-07-02～07-26 因 OAuth 失效靜默死 24 天,而 digest 全綠 ——
+  看門狗沒瞎,是沒被指派去看那裡。同批補上 `last30days/daily-brief.yml`。
+  兩者都有迴歸測試釘住。**這是本檔「出現真實事件才重開」條款的一次正當觸發**,
+  不是「讓它更好」的泛想。⚠ 未動 fail-soft、未改 action inputs、未加 out-of-band 通道
+  (後者仍維持刻意不做的決定)。
 - **notify_metric**(PR #8):跑成功但產出 0(green-but-empty)是內容管線的真失敗。
 
 ## Lessons(觸發 → 教訓;理由 / 證據 / 失效條件)
