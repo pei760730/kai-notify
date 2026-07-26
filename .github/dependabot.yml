@@ -1,0 +1,22 @@
+# Keep GitHub Actions current automatically.
+#
+# Why this file exists: on 2026-07-26 a fleet-wide scan found 25 of 26 repos had
+# no dependabot at all, and every one of them was a full MAJOR version behind on
+# actions/checkout, setup-python and friends. A moving tag like `@v5` only moves
+# inside its own major line — once v6 ships, `@v5` is frozen and nothing says so.
+#
+# monthly + grouped on purpose: the default (weekly, one PR per action) turns
+# into a drizzle of PRs to triage. One bundled PR per month per repo is
+# reviewable in a single pass.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

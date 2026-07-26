@@ -20,8 +20,8 @@ jobs:
     # outside the package, so lint from the repo root to cover it too).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install ruff==0.16.0
@@ -34,8 +34,8 @@ jobs:
       run:
         working-directory: python
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"   # also validates the pip-installable path
@@ -46,7 +46,7 @@ jobs:
     # still succeed (exit 0), never breaking a caller's workflow.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No credentials -> skips, job stays green
         uses: ./
         with:
