@@ -5,15 +5,20 @@
 # actions/checkout, setup-python and friends. A moving tag like `@v5` only moves
 # inside its own major line — once v6 ships, `@v5` is frozen and nothing says so.
 #
-# monthly + grouped on purpose: the default (weekly, one PR per action) turns
-# into a drizzle of PRs to triage. One bundled PR per month per repo is
-# reviewable in a single pass.
+# Schedule: dependabot has no "biweekly" interval, and cron has no week-parity
+# field either, so "every two weeks" is expressed as the 1st and 15th. Fixed
+# dates on purpose — a true 14-day cycle drifts across weekdays over time.
+#
+# grouped on purpose: the default (one PR per action) turns into a drizzle of
+# PRs to triage. One bundled PR per run is reviewable in a single pass.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: cron
+      cronjob: "0 9 1,15 * *"
+      timezone: Asia/Taipei
     cooldown:
       default-days: 7
     groups:
