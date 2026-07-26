@@ -60,6 +60,14 @@ MONITORED = [
     # 併入後 archive。三條收集線=同一條 collect.yml 的三個 matrix job(fail-fast:false,
     # 任一 job 紅→run 紅),一筆監控即全覆蓋;舊三筆會對 archived repo 報假 stale。
     ("collector", "collect.yml", "collector collect(voc/tbvoc/of)", "frequent"),
+    # 2026-07-26 補：本 repo 原本只監控 media-sorter 的 ytdlp 週檢，沒監控真正的
+    # 下載佇列 collector.yml。結果 2026-07-02～07-26 那條管線因 OAuth token 失效
+    # 靜默死 24 天，而看門狗「全綠」——它從一開始就沒被指派去看那裡。這是本次
+    # 名單缺口的直接證據，不是泛化的「多監控一點比較好」。
+    ("media-sorter", "collector.yml", "media-sorter collector(下載佇列)", "frequent"),
+    # daily-brief 是 owner 每天早上真的會讀的東西；斷了只靠「今天沒收到」的缺席
+    # 訊號察覺，而缺席訊號要人記得自己沒收到，太弱。
+    ("last30days", "daily-brief.yml", "last30days 早報", "daily"),
 ]
 
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
@@ -191,7 +199,8 @@ _CADENCE_HUMAN = {
 def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
     """判讀一個 cron 的最近狀態，回白話結果。
     kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到)。
-    只有 fail/stale/unknown 算「要人看」；running/cancelled 視為沒事(它在動)。"""
+    只有 fail/stale/unknown 算「要人看」；running 視為沒事(它在動)。
+    cancelled 算 fail：job 層 timeout-minutes 逾時被殺就落在 cancelled，不是 failure。"""
     if run is None:
         return {
             "kind": "unknown",
@@ -216,6 +225,20 @@ def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
             "url": url,
         }
 
+    # cancelled 不是「沒事」。job 層 timeout-minutes 逾時被殺，conclusion 就是
+    # cancelled 而不是 failure —— 一條每 10 分鐘跑的下載佇列卡住整整逾時，跟它
+    # 跑失敗對 owner 是同一件事：這輪沒做完工作。把 cancelled 併進「沒事」的原始
+    # 寫法，正是 media-sorter 管線 2026-07-02～07-26 靜默死 24 天那類事故的同款盲區
+    # （job 層 timeout → cancelled → 監控說沒事）。措辭刻意區分成「被中止」而非
+    # 「失敗」，因為人為按停也會落在這裡，owner 要能一眼分辨。
+    if concl == "cancelled":
+        return {
+            "kind": "fail",
+            "name": name,
+            "detail": f"{ago}前那次被中止（逾時或人為按停），這輪的工作沒做完",
+            "url": url,
+        }
+
     stale = age is not None and age > _STALE_AFTER.get(cadence, timedelta(hours=26))
     if stale:
         return {
@@ -225,7 +248,7 @@ def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
             "url": url,
         }
 
-    # success / 進行中 / cancelled 都當「沒事」——它有在動就好。
+    # success / 進行中 當「沒事」——它有在動就好。cancelled 已在上面攔掉。
     return {"kind": "ok", "name": name, "detail": f"{ago}前跑過", "url": url}
 
 
