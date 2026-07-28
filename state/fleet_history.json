@@ -21,7 +21,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -40,11 +40,11 @@
   "problem",
   "problem",
   "problem",
-  "problem",
   "green",
+  "problem",
   "problem"
  ],
- "_last_date": "2026-07-27",
+ "_last_date": "2026-07-28",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -73,18 +73,20 @@
   "ok"
  ],
  "ig-insights-sync/sync.yml": [
+  "ok",
+  "ok",
+  "ok",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
   "fail"
  ],
  "last30days/daily-brief.yml": [
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
+  "ok",
   "ok"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
@@ -110,8 +112,8 @@
   "fail",
   "fail",
   "fail",
-  "fail",
   "ok",
+  "fail",
   "fail"
  ],
  "th-ops/expo-pull.yml": [
@@ -134,8 +136,8 @@
  ],
  "voc/daily.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
