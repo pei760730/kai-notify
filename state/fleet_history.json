@@ -19,7 +19,7 @@
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -38,13 +38,13 @@
  "_fleet": [
   "problem",
   "problem",
-  "problem",
   "green",
+  "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-29",
+ "_last_date": "2026-07-30",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -76,7 +76,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -84,9 +84,11 @@
  "last30days/daily-brief.yml": [
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -112,8 +114,8 @@
  "th-customs-scan/scan.yml": [
   "fail",
   "fail",
-  "fail",
   "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -137,7 +139,7 @@
   "ok"
  ],
  "voc/daily.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
