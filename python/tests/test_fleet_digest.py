@@ -118,6 +118,26 @@ def test_monitored_covers_media_sorter_download_queue():
     )
 
 
+def test_monitored_covers_collector_core_bump():
+    # 迴歸釘子(2026-07-31):core-bump 是 reusable caller,被呼叫端 timeout 逾時
+    # = cancelled、if:failure() 通知免疫;它同時又不在本名單 → 兩層盲區疊加,
+    # 「這輪沒開 bump PR」可以無聲無息。caller 端已補 notify-cancelled(collector
+    # #91),本名單是第二層,兩層都要在。
+    entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
+    assert ("collector", "core-bump.yml") in entries, (
+        "collector core-bump 不在監控名單 —— 它被中止時 digest 會報全綠"
+    )
+
+
+def test_monitored_covers_ig_token_refresh():
+    # 迴歸釘子(2026-07-31):token 續期斷掉不當場痛,60 天後整條線才死,
+    # 缺席訊號等於沒有訊號。
+    entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
+    assert ("ig-insights-sync", "token-refresh.yml") in entries, (
+        "ig token 續期不在監控名單 —— 靜默斷掉會在 60 天後以斷線形式引爆"
+    )
+
+
 def test_assess_frequent_stale_when_idle_too_long():
     # A 5-min collector silent for 3h is past its 2h bound.
     a = fd._assess("collector", "frequent", _run("success", 180), _NOW)

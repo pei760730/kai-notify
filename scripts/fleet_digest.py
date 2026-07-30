@@ -68,6 +68,14 @@ MONITORED = [
     # daily-brief 是 owner 每天早上真的會讀的東西；斷了只靠「今天沒收到」的缺席
     # 訊號察覺，而缺席訊號要人記得自己沒收到，太弱。
     ("last30days", "daily-brief.yml", "last30days 早報", "daily"),
+    # 2026-07-31 補兩條(fleet 掃描實證的盲區,不是泛化加監控):
+    # core-bump 是 reusable caller,那端 bump job timeout 30 分,逾時=cancelled 而非
+    # failure → 被呼叫端的 if:failure() 通知免疫;caller 端已加 notify-cancelled
+    # (collector PR #91),這裡是第二層——它先前正好也不在本名單,兩層盲區疊好疊滿。
+    ("collector", "core-bump.yml", "collector core-bump(依賴升版)", "daily"),
+    # token 續期一週一次;斷掉不會當場痛,60 天後 token 到期整條 ig-insights 線才死,
+    # 到時候誰都想不起來是哪一週的續期沒跑。cadence=weekly 讓 stale 判斷貼著排程。
+    ("ig-insights-sync", "token-refresh.yml", "ig token 續期", "weekly"),
 ]
 
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
