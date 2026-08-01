@@ -36,15 +36,15 @@
   "ok"
  ],
  "_fleet": [
-  "problem",
   "green",
+  "problem",
   "problem",
   "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-07-31",
+ "_last_date": "2026-08-01",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,6 +64,7 @@
   "ok"
  ],
  "collector/core-bump.yml": [
+  "ok",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
@@ -77,7 +78,7 @@
  ],
  "ig-insights-sync/sync.yml": [
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -85,6 +86,7 @@
   "fail"
  ],
  "ig-insights-sync/token-refresh.yml": [
+  "ok",
   "ok"
  ],
  "last30days/daily-brief.yml": [
@@ -92,9 +94,11 @@
   "ok",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -120,8 +124,8 @@
   "ok"
  ],
  "th-customs-scan/scan.yml": [
-  "fail",
   "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -153,6 +157,6 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ]
 }
