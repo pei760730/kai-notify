@@ -1,0 +1,46 @@
+# 告警演習:手動觸發,對 owner 的 Telegram 發一則「演習」訊息。
+#
+# 為什麼存在(2026-08-01):艦隊修了整輪告警(cancelled 盲區、job 層 needs、
+# 冷卻、fail-soft),但整條「workflow → kai-notify → Telegram → owner 眼睛」
+# 從沒實彈響過一次——健康指標要量成果不量活動,告警的成果=真的有人看到響。
+# 這支給的就是那一發:跑綠 + owner 手機收到 = 鏈路實證;跑綠 + 沒收到 =
+# 抓到 fail-soft 把死鏈吞掉了(action 設計成永不讓 caller 紅)。
+#
+# 用法:AI 直接 `gh workflow run drill.yml`(owner 是 chat-only,不用他按)。
+# 也是日後改 action.yml / 換 token 後的驗收指令。
+name: drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "附註(顯示在演習訊息裡,可空)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drill
+  cancel-in-progress: false
+
+jobs:
+  fire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Send drill message
+        uses: ./
+        env:
+          KAI_NOTIFY_BOT_TOKEN: ${{ secrets.KAI_NOTIFY_BOT_TOKEN }}
+          KAI_NOTIFY_CHAT_ID: ${{ secrets.KAI_NOTIFY_CHAT_ID }}
+        with:
+          text: "🔔 kai-notify 演習 — 這則有到你手機=通知鏈實證活著(run ${{ github.run_id }})${{ inputs.note }}"
+
+      # action 是 fail-soft(永不讓 caller 紅),所以「跑綠」不等於「送達」。
+      # 演習的判準在 owner 端:訊息有沒有出現在 Telegram。這裡只把提醒印進 log。
+      - name: Reminder
+        run: echo "fail-soft 設計:此 run 綠 ≠ 送達;以 owner Telegram 實收為準。"
