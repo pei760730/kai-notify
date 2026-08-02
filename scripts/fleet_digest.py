@@ -36,6 +36,11 @@ OWNER = "pei760730"
 _API = (
     "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs?per_page=1"
 )
+# 一次列一個 repo 的所有 workflow(拿 state 欄),比每條各問一次省呼叫 —— 監測名單
+# 裡好幾個 repo 有多條 cron。
+_API_WORKFLOWS = (
+    "https://api.github.com/repos/{owner}/{repo}/actions/workflows?per_page=100"
+)
 _TIMEOUT = 15
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
@@ -132,14 +137,21 @@ def _streak_suffix(prior: list, today_kind: str) -> str:
     return f"(連 {n} 天)" if n >= 2 else ""
 
 
+# 判讀趨勢(反覆 / 連 N 天)時要忽略的 kind:它們都不是「這條在健康與壞掉之間擺盪」
+# 的證據 —— unknown 是我讀不到,off 是它根本沒在跑。
+_NEUTRAL_KINDS = frozenset({"unknown", "off"})
+
+
 def _transitions(kinds: list) -> int:
     """Count healthy<->not-healthy flips across a kind sequence (oldest..newest).
-    'unknown' (couldn't read) is neutral — it neither starts nor breaks a flip
-    run, so a spell of unreadable days doesn't masquerade as instability."""
+    'unknown' (couldn't read) and 'off' (deliberately disabled) are neutral —
+    neither starts nor breaks a flip run, so a spell of unreadable days, or a
+    stretch where the workflow was switched off, doesn't masquerade as
+    instability."""
     flips = 0
     prev_ok: bool | None = None
     for k in kinds:
-        if k == "unknown":
+        if k in _NEUTRAL_KINDS:
             continue
         is_ok = k == "ok"
         if prev_ok is not None and is_ok != prev_ok:
@@ -154,7 +166,7 @@ def _is_flapping(prior: list, today_kind: str) -> bool:
     is NOT flapping; ok/fail/ok/fail (3 flips) is. Needs >= 4 real samples so a
     short history can't false-positive — this is the chronic-instability signal
     the consecutive-streak suffix structurally can't see."""
-    window = [k for k in (prior + [today_kind]) if k != "unknown"]
+    window = [k for k in (prior + [today_kind]) if k not in _NEUTRAL_KINDS]
     return len(window) >= 4 and _transitions(window) >= 3
 
 
@@ -196,6 +208,35 @@ def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None
         return (None, "network")
 
 
+def _workflow_states(repo: str, token: str) -> dict:
+    """{workflow 檔名: state} —— state 是 GitHub 對這條 workflow 本身的開關狀態
+    (`active` / `disabled_manually` / `disabled_inactivity`),跟「最近一次 run 的
+    結論」是兩回事。
+
+    讀不到就回空 dict:這層是補充判讀,失敗只能讓判讀退回原本的行為,
+    絕不能讓整份摘要死掉(fail-soft 是本 repo 地基)。"""
+    req = urllib.request.Request(
+        _API_WORKFLOWS.format(owner=OWNER, repo=repo),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return {}
+    out = {}
+    for wf in data.get("workflows") or []:
+        path = wf.get("path") or ""
+        state = wf.get("state")
+        if path and state:
+            out[path.rsplit("/", 1)[-1]] = state
+    return out
+
+
 _CADENCE_HUMAN = {
     "frequent": "本來就該一直在跑",
     "daily": "平常每天要跑一次",
@@ -204,11 +245,44 @@ _CADENCE_HUMAN = {
 }
 
 
-def _assess(name: str, cadence: str, run: dict | None, now: datetime) -> dict:
+def _assess(
+    name: str,
+    cadence: str,
+    run: dict | None,
+    now: datetime,
+    state: str | None = None,
+) -> dict:
     """判讀一個 cron 的最近狀態，回白話結果。
-    kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到)。
+    kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到) /
+          off(被人為停用，不算出事但一定要看得見)。
     只有 fail/stale/unknown 算「要人看」；running 視為沒事(它在動)。
-    cancelled 算 fail：job 層 timeout-minutes 逾時被殺就落在 cancelled，不是 failure。"""
+    cancelled 算 fail：job 層 timeout-minutes 逾時被殺就落在 cancelled，不是 failure。
+
+    `state` 是 workflow 本身的開關(見 _workflow_states)，必須先於 run 判讀 ——
+    停用的 workflow 不會再產生新 run，所以它「最後一次 run」的結論會被永遠凍結：
+    2026-08-01 owner 裁示停掉 th-customs-scan/scan.yml(MOC API 對外關閉、每月燒
+    runner 到逾時)，那條的最後一次 run 是 07-25 的 cancelled，於是本 digest 從此
+    每天回報「❌ th-customs 月掃 — 被中止(連 N 天)」，天數還會一直長。它沒有壞，
+    是被關掉了；把「關掉」講成「壞掉」的看門狗，等於每天都在喊一次狼來了。"""
+    if state == "disabled_manually":
+        return {
+            "kind": "off",
+            "name": name,
+            "detail": "這條被停用中（不是壞掉），重新啟用才會再跑",
+            "url": "",
+        }
+    if state == "disabled_inactivity":
+        # GitHub 對「repo 60 天沒動靜」的排程會自動關掉,而且不會通知任何人 ——
+        # 這是真的靜默死亡,跟人為停用是相反的兩件事,不可以併在一起報。
+        return {
+            "kind": "fail",
+            "name": name,
+            "detail": (
+                "被 GitHub 自動停用了（repo 太久沒動靜的排程會被自動關掉，"
+                "而且不會通知）——要手動重新啟用它才會再跑"
+            ),
+            "url": "",
+        }
     if run is None:
         return {
             "kind": "unknown",
@@ -285,10 +359,17 @@ def main() -> int:
         return 0
 
     now = datetime.now(timezone.utc)
-    reads = []  # (key, name, cadence, run, err)
+    # 每個 repo 只問一次 workflow 清單(拿開關狀態),同 repo 的多條 cron 共用。
+    states: dict = {}
+    for repo in dict.fromkeys(r for r, _wf, _n, _c in MONITORED):
+        states[repo] = _workflow_states(repo, token)
+
+    reads = []  # (key, name, cadence, run, err, state)
     for repo, wf, name, cadence in MONITORED:
         run, err = _latest_run(repo, wf, token)
-        reads.append((f"{repo}/{wf}", name, cadence, run, err))
+        reads.append(
+            (f"{repo}/{wf}", name, cadence, run, err, states.get(repo, {}).get(wf))
+        )
 
     # (a) 誠實:一大片讀取因 PAT/限流失敗 = 我根本沒法驗健康,絕不能假裝全綠。
     blind = [r for r in reads if r[4] in ("auth", "ratelimit")]
@@ -304,15 +385,18 @@ def main() -> int:
 
     history = _load_history()
     assessed = []
-    for key, name, cadence, run, _err in reads:
-        a = _assess(name, cadence, run, now)
+    for key, name, cadence, run, _err, state in reads:
+        a = _assess(name, cadence, run, now, state)
         a["key"] = key
         # 用「今天以前」的歷史(還沒 append 今天)判讀趨勢。
         prior = history.get(key, [])
         a["recovered"] = _recovered(prior, a["kind"])
         a["flapping"] = _is_flapping(prior, a["kind"])
         assessed.append(a)
-    problems = [a for a in assessed if a["kind"] != "ok"]
+    # 「被停用」不是出事,不進「要你看一下」的計數 —— 但也絕不消失:它在下面的
+    # 「另外」區塊每天照列一行。看門狗可以不喊狼,不可以假裝那條 cron 不存在。
+    problems = [a for a in assessed if a["kind"] not in ("ok", "off")]
+    switched_off = [a for a in assessed if a["kind"] == "off"]
 
     # 就算現在是綠的,這兩件也值得單獨講一行(否則會被「其他都正常」吞掉):
     #  · 恢復:昨天還在鬧、今天好了 —— 一句報喜,也證明問題真的解了。
@@ -333,6 +417,8 @@ def main() -> int:
             lines.append(
                 f"🔀 {a['name']} — 這幾天時好時壞、一直反覆,現在剛好是綠的但值得盯"
             )
+        for a in switched_off:
+            lines.append(f"🔕 {a['name']} — {a['detail']}")
         return lines
 
     if not problems:
@@ -372,7 +458,7 @@ def main() -> int:
             if a["url"]:
                 head += f"\n   👉 {a['url']}"
             blocks.append(head)
-        ok_n = len(assessed) - len(problems)
+        ok_n = len(assessed) - len(problems) - len(switched_off)
         msg = f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n" + "\n\n".join(
             blocks
         )

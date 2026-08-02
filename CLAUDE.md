@@ -44,6 +44,24 @@
   兩者都有迴歸測試釘住。**這是本檔「出現真實事件才重開」條款的一次正當觸發**,
   不是「讓它更好」的泛想。⚠ 未動 fail-soft、未改 action inputs、未加 out-of-band 通道
   (後者仍維持刻意不做的決定)。
+- **digest 看得見 workflow 的開關狀態**(2026-08-02,帶具體事件重開封版):
+  `_assess` 原本只看「最近一次 run 的結論」,看不到 workflow 本身是 active 還是
+  disabled。**停用的 workflow 不會再產生新 run**,所以它最後一次 run 的結論被永遠
+  凍結 —— 2026-08-01 owner 裁示停掉 `th-customs-scan/scan.yml`(MOC open-data API
+  對外關閉,每月只是燒 runner 到逾時),那條的最後一次 run 是 07-25 的 `cancelled`,
+  於是 digest 從此每天回報「❌ th-customs 月掃 — 被中止(連 N 天)」,天數還一直長。
+  它沒有壞,是被關掉了。實測(對真 fleet dry-run):修前「有 2 個要你看一下」,
+  修後「有 1 個」+ 一行 🔕。
+  - `disabled_manually` → kind `off`:不計入「要你看一下」,但**每天照列一行**,
+    絕不消失(honesty 不變式:可以不喊狼,不可以假裝那條 cron 不存在)。
+  - `disabled_inactivity` → 仍算 `fail` 且措辭不同:GitHub 對「repo 60 天沒動靜」
+    的排程會自動關掉**且不通知任何人**,那是真的靜默死亡。兩者共用同一 code path、
+    只差 state 字串,已用一對正反測試釘死,擋「乾脆把所有 disabled_* 都靜音」。
+  - ⚠ 未動 fail-soft(`_workflow_states` 讀不到就回 `{}`,判讀原樣退回)、未改 action
+    inputs、未加 out-of-band 通道。
+  - ⚠ **這不是降噪功能**。本檔 Lessons 明令「想在 digest 加降噪 / 分級先問痛不痛」,
+    其失效條件(訊量暴增到洗版)並未成立 —— 本次改的是**判讀正確性**:把「被關掉」
+    講成「壞掉」是錯的判讀,不是吵。原本考慮做的「已知問題暫緩清單」已據該條否決。
 - **notify_metric**(PR #8):跑成功但產出 0(green-but-empty)是內容管線的真失敗。
 
 ## Lessons(觸發 → 教訓;理由 / 證據 / 失效條件)

@@ -7,6 +7,7 @@ path. No real network: _latest_run and notify are monkeypatched.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -28,11 +29,23 @@ def _load():
 fd = _load()
 _NOW = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
 
+# The autouse fixture below stubs fd._workflow_states for every test; grab the
+# real one now so the two tests that exercise it directly aren't testing the stub.
+_REAL_WORKFLOW_STATES = fd._workflow_states
+
 
 @pytest.fixture(autouse=True)
 def _isolate_state(tmp_path, monkeypatch):
     """Never touch the repo's real state/ file during tests."""
     monkeypatch.setattr(fd, "_STATE_FILE", str(tmp_path / "fleet_history.json"))
+
+
+@pytest.fixture(autouse=True)
+def _no_network_workflow_states(monkeypatch):
+    """main() also asks GitHub for each workflow's on/off state. Default it to
+    "read nothing" so every existing test stays offline and behaves exactly as
+    it did before that lookup existed; tests that care override it."""
+    monkeypatch.setattr(fd, "_workflow_states", lambda repo, token: {})
 
 
 def _run(conclusion, mins_ago, url="https://gh/run/1"):
@@ -338,3 +351,139 @@ def test_main_tags_flapping_on_a_current_problem(monkeypatch):
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     assert "時好時壞" in box["text"]
+
+
+# ── workflow 開關狀態(active / disabled_manually / disabled_inactivity)─────────
+#
+# 真事故:2026-08-01 owner 裁示停掉 th-customs-scan/scan.yml(MOC open-data API
+# 對外關閉,每月只是燒 runner 到逾時)。停用的 workflow 不會再產生新 run,所以它
+# 最後一次 run 的結論(07-25 cancelled)被永遠凍結,digest 於是每天回報
+# 「❌ th-customs 月掃 — 被中止(連 N 天)」,天數還一直長。它沒壞,是被關掉了。
+def test_assess_manually_disabled_is_not_a_failure():
+    a = fd._assess(
+        "th-customs 月掃",
+        "monthly",
+        _run("cancelled", 8 * 24 * 60),
+        _NOW,
+        "disabled_manually",
+    )
+    assert a["kind"] == "off"
+    assert "停用" in a["detail"]
+
+
+def test_assess_disabled_beats_a_frozen_bad_run():
+    """開關狀態要先於 run 判讀 —— 否則凍結的舊 run 會蓋過「它已經關了」。"""
+    stale_fail = _run("failure", 400 * 24 * 60)  # 又老又紅
+    assert (
+        fd._assess("x", "daily", stale_fail, _NOW, "disabled_manually")["kind"] == "off"
+    )
+    # 沒有 state 資訊時(讀不到 workflow 清單)行為完全不變 —— 這是 fail-soft 的底線
+    assert fd._assess("x", "daily", stale_fail, _NOW, None)["kind"] == "fail"
+
+
+def test_assess_inactivity_disabled_is_loud():
+    """GitHub 會把「repo 太久沒動靜」的排程自動關掉,而且不通知任何人 ——
+    這是真的靜默死亡,跟人為停用必須分開報,不可以一起被靜音。"""
+    a = fd._assess("某條月排程", "monthly", None, _NOW, "disabled_inactivity")
+    assert a["kind"] == "fail"
+    assert "自動停用" in a["detail"]
+
+
+def test_neutral_kinds_do_not_look_like_instability():
+    """被關掉的那幾天不算「時好時壞」—— 它根本沒在跑,沒有擺盪可言。"""
+    assert fd._is_flapping(["ok", "off", "off", "off"], "ok") is False
+    # 真的擺盪還是要抓到(對照組,證明上面不是因為函式壞了才回 False)
+    assert fd._is_flapping(["ok", "fail", "ok", "fail"], "ok") is True
+
+
+def _all_success_except_disabled(monkeypatch, disabled_repo, disabled_wf, state):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd,
+        "_latest_run",
+        lambda r, w, t: (
+            (_recent("cancelled", 10), None)
+            if (r, w) == (disabled_repo, disabled_wf)
+            else (_recent("success", 10), None)
+        ),
+    )
+    monkeypatch.setattr(
+        fd,
+        "_workflow_states",
+        lambda repo, token: {disabled_wf: state} if repo == disabled_repo else {},
+    )
+
+
+def test_main_disabled_workflow_is_shown_but_not_counted_as_a_problem(monkeypatch):
+    repo, wf = "th-customs-scan", "scan.yml"
+    assert (repo, wf) in [(r, w) for r, w, _n, _c in fd.MONITORED], "監測名單前提變了"
+    _all_success_except_disabled(monkeypatch, repo, wf, "disabled_manually")
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    text = box["text"]
+
+    # 不喊狼:它不該出現在「要你看一下」的清單裡
+    assert "要你看一下" not in text
+    # 但也不准消失 —— 每天照列一行,owner 才不會忘了有這條 cron 被關著
+    assert "th-customs 月掃" in text and "🔕" in text
+    # 而且不可以被算進「都正常」的頭數
+    assert f"其餘 {len(fd.MONITORED) - 1} 個都正常" in text
+
+
+def test_main_inactivity_disabled_still_demands_attention(monkeypatch):
+    """反向:GitHub 自動關掉的排程必須留在「要你看一下」裡。
+    這條和上一條共用同一個 code path,只差 state 字串 —— 一起釘才擋得住
+    「乾脆把所有 disabled_* 都靜音」這種看似合理的簡化。"""
+    repo, wf = "th-customs-scan", "scan.yml"
+    _all_success_except_disabled(monkeypatch, repo, wf, "disabled_inactivity")
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    text = box["text"]
+    assert "要你看一下" in text
+    assert "th-customs 月掃" in text and "自動停用" in text
+
+
+class _FakeResp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return json.dumps(self._payload).encode("utf-8")
+
+
+def test_workflow_states_maps_basename_to_state(monkeypatch):
+    """回傳要以檔名為鍵(MONITORED 存的是檔名,API 給的是 .github/workflows/x.yml)。"""
+    captured = {}
+    payload = {
+        "workflows": [
+            {"path": ".github/workflows/scan.yml", "state": "disabled_manually"},
+            {"path": ".github/workflows/ci.yml", "state": "active"},
+            {"path": "", "state": "active"},  # 殘缺條目要被跳過
+            {"path": ".github/workflows/x.yml"},  # 沒 state 也跳過
+        ]
+    }
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        return _FakeResp(payload)
+
+    monkeypatch.setattr(fd.urllib.request, "urlopen", fake_urlopen)
+    out = _REAL_WORKFLOW_STATES("th-customs-scan", "tok")
+    assert out == {"scan.yml": "disabled_manually", "ci.yml": "active"}
+    assert "th-customs-scan" in captured["url"]
+
+
+def test_workflow_states_is_fail_soft(monkeypatch):
+    """讀不到就回空 dict,讓判讀退回原本行為 —— 絕不能讓整份摘要死掉。"""
+
+    def boom(req, timeout=None):
+        raise OSError("network down")
+
+    monkeypatch.setattr(fd.urllib.request, "urlopen", boom)
+    assert _REAL_WORKFLOW_STATES("any", "tok") == {}
