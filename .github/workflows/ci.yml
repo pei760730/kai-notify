@@ -19,6 +19,8 @@ jobs:
     # ruff over both the package and the standalone scripts (fleet_digest lives
     # outside the package, so lint from the repo root to cover it too).
     runs-on: ubuntu-latest
+    # 實測最長 0.2 分(近 20 次成功);不設就是吃 360 分鐘預設
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -30,6 +32,8 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
+    # 實測最長 0.3 分(近 20 次成功);不設就是吃 360 分鐘預設
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: python
@@ -45,6 +49,8 @@ jobs:
     # Proves action.yml is valid and fail-soft: with no token it must skip and
     # still succeed (exit 0), never breaking a caller's workflow.
     runs-on: ubuntu-latest
+    # 實測最長 0.1 分(近 20 次成功);不設就是吃 360 分鐘預設
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - name: No credentials -> skips, job stays green
