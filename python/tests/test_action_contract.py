@@ -164,7 +164,15 @@ def test_action_yml_wires_inputs_to_kn_env():
 
 
 def _run_action_send(monkeypatch, env: dict, sent: list):
-    for key in ("KN_TEXT", "KN_TITLE", "KN_ITEMS", "KN_LABEL", "KN_VALUE", "KN_UNIT", "KN_FLOOR"):
+    for key in (
+        "KN_TEXT",
+        "KN_TITLE",
+        "KN_ITEMS",
+        "KN_LABEL",
+        "KN_VALUE",
+        "KN_UNIT",
+        "KN_FLOOR",
+    ):
         monkeypatch.delenv(key, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -196,7 +204,12 @@ def test_empty_input_sends_self_diagnostic_instead_of_silence(monkeypatch):
 
 def test_empty_input_alert_survives_missing_github_env(monkeypatch):
     # 本機 / 非 Actions 環境呼叫時不能因為缺 env 就炸掉(fail-soft 是地基)
-    for key in ("GITHUB_REPOSITORY", "GITHUB_WORKFLOW", "GITHUB_SERVER_URL", "GITHUB_RUN_ID"):
+    for key in (
+        "GITHUB_REPOSITORY",
+        "GITHUB_WORKFLOW",
+        "GITHUB_SERVER_URL",
+        "GITHUB_RUN_ID",
+    ):
         monkeypatch.delenv(key, raising=False)
     sent: list[str] = []
     _run_action_send(monkeypatch, {}, sent)
@@ -217,6 +230,8 @@ def test_healthy_metric_stays_silent(monkeypatch):
     monkeypatch.setenv("KN_FLOOR", "1")
     sent: list[str] = []
     monkeypatch.setattr(mod, "notify", lambda text: sent.append(text) or True)
-    monkeypatch.setattr(mod, "notify_metric", lambda *a, **k: False)  # 高於 floor → 不告警
+    monkeypatch.setattr(
+        mod, "notify_metric", lambda *a, **k: False
+    )  # 高於 floor → 不告警
     assert mod.main() == 0
     assert sent == [], "健康的 metric 必須維持靜默,不可被 empty-input 分支攔截"

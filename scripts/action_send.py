@@ -35,6 +35,7 @@ def _empty_input_alert() -> str:
         f"不是「這輪沒事」。去看:{where}"
     )
 
+
 def main() -> int:
     text = (os.environ.get("KN_TEXT") or "").strip()
     title = (os.environ.get("KN_TITLE") or "").strip()
@@ -79,7 +80,11 @@ def main() -> int:
         ok = notify(_empty_input_alert())
         print(
             "kai-notify: EMPTY INPUT — caller sent nothing; "
-            + ("self-diagnostic alert sent." if ok else "alert also failed (fail-soft).")
+            + (
+                "self-diagnostic alert sent."
+                if ok
+                else "alert also failed (fail-soft)."
+            )
         )
         return 0
 
