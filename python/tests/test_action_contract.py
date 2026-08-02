@@ -154,3 +154,84 @@ def test_action_yml_wires_inputs_to_kn_env():
         src = f.read()
     for mapping in EXPECTED_ENV_GLUE:
         assert mapping in src, f"action.yml input->env glue broken/renamed: {mapping!r}"
+
+
+# --- 空輸入不能等於靜默(2026-07-26~30 ig-insights-sync 事件) ---
+#
+# 那次:通知器組訊息的步驟被跳過 → text 是空字串 → action 靜默 return 0 →
+# workflow 綠燈。cron 連紅五天,owner 收到零則。呼叫端補保底只修一個消費端;
+# fleet 有 53 個 kai-notify step、9 個 text 是動態值且無保底,所以補在 hub 這層。
+
+
+def _run_action_send(monkeypatch, env: dict, sent: list):
+    for key in (
+        "KN_TEXT",
+        "KN_TITLE",
+        "KN_ITEMS",
+        "KN_LABEL",
+        "KN_VALUE",
+        "KN_UNIT",
+        "KN_FLOOR",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    mod = _load_action_send()
+    monkeypatch.setattr(mod, "notify", lambda text: sent.append(text) or True)
+    assert mod.main() == 0
+    return sent
+
+
+def test_empty_input_sends_self_diagnostic_instead_of_silence(monkeypatch):
+    sent: list[str] = []
+    _run_action_send(
+        monkeypatch,
+        {
+            "GITHUB_REPOSITORY": "pei760730/ig-insights-sync",
+            "GITHUB_WORKFLOW": "ig-insights-sync",
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_RUN_ID": "123456",
+        },
+        sent,
+    )
+    assert len(sent) == 1, "什麼都沒給的時候必須出聲,不能靜默綠燈"
+    body = sent[0]
+    # owner 是 chat-only:訊息本身要指得出是誰壞了,不能只說「有東西壞了」
+    assert "pei760730/ig-insights-sync" in body
+    assert "ig-insights-sync" in body
+    assert "actions/runs/123456" in body
+
+
+def test_empty_input_alert_survives_missing_github_env(monkeypatch):
+    # 本機 / 非 Actions 環境呼叫時不能因為缺 env 就炸掉(fail-soft 是地基)
+    for key in (
+        "GITHUB_REPOSITORY",
+        "GITHUB_WORKFLOW",
+        "GITHUB_SERVER_URL",
+        "GITHUB_RUN_ID",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    sent: list[str] = []
+    _run_action_send(monkeypatch, {}, sent)
+    assert len(sent) == 1
+
+
+def test_healthy_metric_stays_silent(monkeypatch):
+    """metric 路徑刻意的靜默不能被這次改動波及。
+
+    label+value 且高於 floor = 產出正常,設計上就是不出聲。若這條紅了,
+    代表 empty-input 分支吃到了 metric 的流量,整個 fleet 會被健康訊息洗版。
+    """
+    mod = _load_action_send()
+    for key in ("KN_TEXT", "KN_TITLE", "KN_ITEMS"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("KN_LABEL", "rows")
+    monkeypatch.setenv("KN_VALUE", "42")
+    monkeypatch.setenv("KN_FLOOR", "1")
+    sent: list[str] = []
+    monkeypatch.setattr(mod, "notify", lambda text: sent.append(text) or True)
+    monkeypatch.setattr(
+        mod, "notify_metric", lambda *a, **k: False
+    )  # 高於 floor → 不告警
+    assert mod.main() == 0
+    assert sent == [], "健康的 metric 必須維持靜默,不可被 empty-input 分支攔截"
