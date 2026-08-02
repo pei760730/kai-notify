@@ -17,7 +17,6 @@ sys.path.insert(
 from kai_notify import notify, notify_digest, notify_metric
 
 
-
 def _empty_input_alert() -> str:
     """Message for "the caller invoked me with nothing".
 
