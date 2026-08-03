@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-02",
+ "_last_date": "2026-08-03",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -61,9 +61,10 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "collector/core-bump.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -87,6 +88,7 @@
   "fail"
  ],
  "ig-insights-sync/token-refresh.yml": [
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -134,7 +136,7 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "off"
  ],
  "th-ops/expo-pull.yml": [
   "ok",
@@ -159,8 +161,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ]
 }
