@@ -42,9 +42,9 @@
   "problem",
   "problem",
   "problem",
-  "problem"
+  "green"
  ],
- "_last_date": "2026-08-08",
+ "_last_date": "2026-08-09",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,8 +55,8 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -88,7 +88,7 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "off"
  ],
  "ig-insights-sync/token-refresh.yml": [
   "ok",
@@ -136,7 +136,7 @@
   "ok"
  ],
  "th-customs-scan/scan.yml": [
-  "fail",
+  "off",
   "off",
   "off",
   "off",
