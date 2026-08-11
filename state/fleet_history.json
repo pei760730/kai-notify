@@ -39,12 +39,12 @@
   "problem",
   "problem",
   "problem",
-  "problem",
+  "green",
   "green",
   "green",
   "green"
  ],
- "_last_date": "2026-08-11",
+ "_last_date": "2026-08-12",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -85,7 +85,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "off",
   "off",
   "off",
   "off"
