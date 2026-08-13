@@ -37,14 +37,14 @@
  ],
  "_fleet": [
   "problem",
-  "problem",
+  "green",
   "green",
   "green",
   "green",
   "green",
   "green"
  ],
- "_last_date": "2026-08-13",
+ "_last_date": "2026-08-14",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -83,7 +83,7 @@
  ],
  "ig-insights-sync/sync.yml": [
   "fail",
-  "fail",
+  "off",
   "off",
   "off",
   "off",
