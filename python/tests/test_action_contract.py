@@ -113,11 +113,43 @@ def test_action_send_routes_digest_to_notify_digest(monkeypatch):
     assert calls == [("notify_digest", "Daily", ["one", "two"])]
 
 
+def test_action_send_routes_title_only_digest(monkeypatch):
+    """A title without items is still a valid one-line digest."""
+    _clear_action_env(monkeypatch)
+    calls = _capture_senders(monkeypatch)
+    monkeypatch.setenv("KN_TITLE", "Daily")
+
+    assert action_send.main() == 0
+    assert calls == [("notify_digest", "Daily", [])]
+
+
 def test_action_send_routes_metric_to_notify_metric(monkeypatch):
     _clear_action_env(monkeypatch)
     calls = _capture_senders(monkeypatch)
     monkeypatch.setenv("KN_LABEL", "rows")
     monkeypatch.setenv("KN_VALUE", "0")
+
+    assert action_send.main() == 0
+    assert calls == [("notify_metric", "rows", "0", 1.0, "")]
+
+
+def test_action_send_passes_custom_floor_to_notify_metric(monkeypatch):
+    _clear_action_env(monkeypatch)
+    calls = _capture_senders(monkeypatch)
+    monkeypatch.setenv("KN_LABEL", "rows")
+    monkeypatch.setenv("KN_VALUE", "3")
+    monkeypatch.setenv("KN_FLOOR", "10")
+
+    assert action_send.main() == 0
+    assert calls == [("notify_metric", "rows", "3", 10.0, "")]
+
+
+def test_action_send_invalid_floor_falls_back_fail_soft(monkeypatch):
+    _clear_action_env(monkeypatch)
+    calls = _capture_senders(monkeypatch)
+    monkeypatch.setenv("KN_LABEL", "rows")
+    monkeypatch.setenv("KN_VALUE", "0")
+    monkeypatch.setenv("KN_FLOOR", "not-a-number")
 
     assert action_send.main() == 0
     assert calls == [("notify_metric", "rows", "0", 1.0, "")]
@@ -139,6 +171,8 @@ def test_action_send_passes_unit_to_notify_metric(monkeypatch):
 # unguarded seam. A typo like `KN_TEXT: ${{ inputs.txt }}` leaves every consumer
 # silently sending blanks: CI green, ~12 repos muted.
 EXPECTED_ENV_GLUE = (
+    "KAI_NOTIFY_BOT_TOKEN: ${{ inputs.bot-token != '' && inputs.bot-token || env.KAI_NOTIFY_BOT_TOKEN }}",
+    "KAI_NOTIFY_CHAT_ID: ${{ inputs.chat-id != '' && inputs.chat-id || env.KAI_NOTIFY_CHAT_ID }}",
     "KN_TEXT: ${{ inputs.text }}",
     "KN_TITLE: ${{ inputs.title }}",
     "KN_ITEMS: ${{ inputs.items }}",
@@ -154,6 +188,13 @@ def test_action_yml_wires_inputs_to_kn_env():
         src = f.read()
     for mapping in EXPECTED_ENV_GLUE:
         assert mapping in src, f"action.yml input->env glue broken/renamed: {mapping!r}"
+
+
+def test_action_yml_keeps_shell_level_fail_soft_guard():
+    """Import/startup failures occur outside the Python core and must still exit zero."""
+    with open(_ACTION_YML, encoding="utf-8") as f:
+        src = f.read()
+    assert 'python3 "$GITHUB_ACTION_PATH/scripts/action_send.py" || true' in src
 
 
 # --- 空輸入不能等於靜默(2026-07-26~30 ig-insights-sync 事件) ---
@@ -214,6 +255,13 @@ def test_empty_input_alert_survives_missing_github_env(monkeypatch):
     sent: list[str] = []
     _run_action_send(monkeypatch, {}, sent)
     assert len(sent) == 1
+
+
+def test_label_without_value_is_empty_input_not_metric(monkeypatch):
+    sent: list[str] = []
+    _run_action_send(monkeypatch, {"KN_LABEL": "rows"}, sent)
+    assert len(sent) == 1
+    assert "沒有給任何內容" in sent[0]
 
 
 def test_healthy_metric_stays_silent(monkeypatch):

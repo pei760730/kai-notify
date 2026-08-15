@@ -7,6 +7,7 @@ path. No real network: _latest_run and notify are monkeypatched.
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -69,6 +70,11 @@ def test_humanize_scales():
     assert fd._humanize(timedelta(hours=3)) == "3h"
     assert fd._humanize(timedelta(hours=47)) == "47h"
     assert fd._humanize(timedelta(days=3)) == "3d"
+
+
+def test_humanize_exact_unit_boundaries():
+    assert fd._humanize(timedelta(minutes=60)) == "1h"
+    assert fd._humanize(timedelta(hours=48)) == "2d"
 
 
 # ── _assess ──────────────────────────────────────────────────────────────────
@@ -157,6 +163,11 @@ def test_assess_frequent_stale_when_idle_too_long():
     assert a["kind"] == "stale"
 
 
+def test_assess_exact_stale_boundary_is_still_fresh():
+    a = fd._assess("voc daily", "daily", _run("success", 26 * 60), _NOW)
+    assert a["kind"] == "ok"
+
+
 # ── main() message composition ───────────────────────────────────────────────
 def _capture_notify(monkeypatch):
     box = {}
@@ -212,6 +223,29 @@ def test_main_degraded_reads_do_not_fake_all_green(monkeypatch):
     assert not os.path.exists(fd._STATE_FILE)
 
 
+def test_main_degrades_at_exactly_half_blind_reads(monkeypatch):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    calls = {"n": 0}
+
+    def half_blind(repo, wf, token):
+        calls["n"] += 1
+        if calls["n"] <= len(fd.MONITORED) // 2:
+            return (None, "auth")
+        return (_recent("success", 10), None)
+
+    monkeypatch.setattr(fd, "_latest_run", half_blind)
+    monkeypatch.setattr(
+        fd,
+        "_save_history",
+        lambda hist: (_ for _ in ()).throw(
+            AssertionError("history must stay untouched")
+        ),
+    )
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "報不準" in box["text"]
+
+
 def test_main_streak_suffix_from_history(monkeypatch):
     # (b) memory: a cron failing again shows "(連 N 天)".
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
@@ -228,6 +262,10 @@ def test_main_streak_suffix_from_history(monkeypatch):
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     assert "連 3 天" in box["text"]  # 2 prior + today
+
+
+def test_streak_suffix_reports_exactly_two_days():
+    assert fd._streak_suffix(["fail"], "fail") == "(連 2 天)"
 
 
 def test_main_green_streak_shown_when_long(monkeypatch):
@@ -487,3 +525,60 @@ def test_workflow_states_is_fail_soft(monkeypatch):
 
     monkeypatch.setattr(fd.urllib.request, "urlopen", boom)
     assert _REAL_WORKFLOW_STATES("any", "tok") == {}
+
+
+def test_save_history_is_fail_soft(monkeypatch):
+    monkeypatch.setattr(fd.os, "makedirs", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "builtins.open", lambda *a, **k: (_ for _ in ()).throw(OSError("disk full"))
+    )
+    fd._save_history({"x": ["ok"]})
+
+
+def test_latest_run_reads_workflow_runs_and_uses_first(monkeypatch):
+    payload = {
+        "workflow_runs": [
+            {"id": "newest"},
+            {"id": "older"},
+        ]
+    }
+    monkeypatch.setattr(
+        fd.urllib.request, "urlopen", lambda *a, **k: _FakeResp(payload)
+    )
+    run, err = fd._latest_run("repo", "ci.yml", "tok")
+    assert err is None
+    assert run == {"id": "newest"}
+
+
+def _raise_http(code, headers=None):
+    raise fd.urllib.error.HTTPError(
+        "url", code, "error", headers or {}, io.BytesIO(b"{}")
+    )
+
+
+def test_latest_run_classifies_403_auth(monkeypatch):
+    monkeypatch.setattr(fd.urllib.request, "urlopen", lambda *a, **k: _raise_http(403))
+    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "auth")
+
+
+def test_latest_run_classifies_403_rate_limit(monkeypatch):
+    monkeypatch.setattr(
+        fd.urllib.request,
+        "urlopen",
+        lambda *a, **k: _raise_http(403, {"x-ratelimit-remaining": "0"}),
+    )
+    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "ratelimit")
+
+
+def test_latest_run_classifies_429_rate_limit(monkeypatch):
+    monkeypatch.setattr(fd.urllib.request, "urlopen", lambda *a, **k: _raise_http(429))
+    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "ratelimit")
+
+
+def test_latest_run_is_fail_soft_on_plain_oserror(monkeypatch):
+    monkeypatch.setattr(
+        fd.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(OSError("socket closed")),
+    )
+    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "network")

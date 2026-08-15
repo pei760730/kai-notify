@@ -44,6 +44,17 @@ def test_notify_sends_text(monkeypatch):
     assert sent["body"]["text"] == "hello"
     assert sent["body"]["chat_id"] == "111111111"
     assert "bot123:abc/sendMessage" in sent["url"]
+    assert sent["body"]["disable_web_page_preview"] is True
+
+
+def test_notify_requires_both_credentials(monkeypatch):
+    """Fail closed when exactly one half of the destination is configured."""
+    for missing in ("KAI_NOTIFY_BOT_TOKEN", "KAI_NOTIFY_CHAT_ID"):
+        _creds(monkeypatch)
+        monkeypatch.delenv(missing)
+        sent = _capture(monkeypatch)
+        assert kai_notify.notify("hi") is False
+        assert sent == {}
 
 
 def test_notify_strips_and_skips_empty(monkeypatch):
@@ -124,6 +135,38 @@ def test_clip_counts_utf16_units_not_codepoints(monkeypatch):
     assert text.endswith("…(truncated)")
     # no split surrogate pair: re-encoding round-trips cleanly
     assert text.encode("utf-16-le").decode("utf-16-le") == text
+
+
+def test_clip_preserves_exact_telegram_limit():
+    text = "a" * kai_notify._TG_MAX
+    assert kai_notify._clip(text) == text
+
+
+def test_clip_uses_the_full_available_budget():
+    clipped = kai_notify._clip("a" * (kai_notify._TG_MAX + 100))
+    assert kai_notify._utf16_len(clipped) == kai_notify._TG_MAX
+    assert clipped == (
+        "a" * (kai_notify._TG_MAX - len(kai_notify._TRUNC_MARK))
+        + kai_notify._TRUNC_MARK
+    )
+
+
+def test_clip_counts_bmp_boundary_as_one_utf16_unit():
+    budget = kai_notify._TG_MAX - len(kai_notify._TRUNC_MARK)
+    clipped = kai_notify._clip("\uffff" * budget + "x" * 100)
+    assert clipped == "\uffff" * budget + kai_notify._TRUNC_MARK
+
+
+def test_clip_stops_at_first_character_that_will_not_fit():
+    budget = kai_notify._TG_MAX - len(kai_notify._TRUNC_MARK)
+    clipped = kai_notify._clip("a" * (budget - 1) + "🚨" + "b" * 100)
+    assert clipped == "a" * (budget - 1) + kai_notify._TRUNC_MARK
+
+
+def test_clip_strips_trailing_whitespace_before_marker():
+    budget = kai_notify._TG_MAX - len(kai_notify._TRUNC_MARK)
+    clipped = kai_notify._clip("a" * (budget - 2) + "  " + "x" * 100)
+    assert clipped == "a" * (budget - 2) + kai_notify._TRUNC_MARK
 
 
 def test_200_with_ok_false_is_not_a_success(monkeypatch):
@@ -239,6 +282,37 @@ def test_honors_retry_after(monkeypatch):
     assert slept and slept[0] >= 2
 
 
+def test_retry_after_falls_back_to_header():
+    exc = kai_notify.urllib.error.HTTPError(
+        "url", 429, "rate limited", {"Retry-After": "7"}, io.BytesIO(b"{}")
+    )
+    assert kai_notify._retry_after(exc, b"{}") == 7.0
+
+
+def test_send_does_not_attempt_when_budget_is_already_exhausted(monkeypatch):
+    monkeypatch.setattr(kai_notify, "_credentials", lambda: ("token", "chat"))
+    ticks = iter((100.0, 125.0))
+    monkeypatch.setattr(kai_notify.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(
+        kai_notify,
+        "_send_once",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not send")),
+    )
+    assert kai_notify._send("hi") is False
+
+
+def test_send_does_not_sleep_to_the_exact_budget_deadline(monkeypatch):
+    monkeypatch.setattr(kai_notify, "_credentials", lambda: ("token", "chat"))
+    ticks = iter((100.0, 100.0, 100.0, 125.0))
+    monkeypatch.setattr(kai_notify.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(kai_notify, "_send_once", lambda *a, **k: ("retry", 25.0))
+    monkeypatch.setattr(kai_notify.random, "uniform", lambda *a: 0.0)
+    slept = []
+    monkeypatch.setattr(kai_notify.time, "sleep", slept.append)
+    assert kai_notify._send("hi") is False
+    assert slept == []
+
+
 # ── notify_metric — "green but empty" product-quantity guard ──────────────────
 def test_metric_below_floor_alerts(monkeypatch):
     _creds(monkeypatch)
@@ -282,6 +356,20 @@ def test_metric_unparseable_value_is_surfaced_not_swallowed(monkeypatch):
     # A non-numeric value must not silently pass as healthy — say we can't read it.
     assert kai_notify.notify_metric("voc", "N/A") is True
     assert "無法判讀" in sent["body"]["text"]
+
+
+def test_metric_none_is_surfaced_not_raised(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    assert kai_notify.notify_metric("voc", None) is True
+    assert "無法判讀" in sent["body"]["text"]
+
+
+def test_metric_empty_label_is_self_identifying(monkeypatch):
+    _creds(monkeypatch)
+    sent = _capture(monkeypatch)
+    assert kai_notify.notify_metric("", 0) is True
+    assert "(unnamed)" in sent["body"]["text"]
 
 
 def test_metric_never_raises_without_creds(monkeypatch):
