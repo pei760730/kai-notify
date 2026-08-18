@@ -41,10 +41,10 @@
   "green",
   "green",
   "green",
-  "green",
+  "problem",
   "problem"
  ],
- "_last_date": "2026-08-18",
+ "_last_date": "2026-08-19",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -132,7 +132,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail"
  ],
  "th-customs-scan/scan.yml": [
@@ -160,7 +160,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "voc/daily.yml": [
   "ok",
