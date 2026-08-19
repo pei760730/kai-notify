@@ -40,11 +40,11 @@
   "green",
   "green",
   "green",
-  "green",
+  "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-19",
+ "_last_date": "2026-08-20",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -131,7 +131,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -159,8 +159,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "fail"
+  "fail",
+  "ok"
  ],
  "voc/daily.yml": [
   "ok",
