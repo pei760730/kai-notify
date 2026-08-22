@@ -55,7 +55,12 @@ MONITORED = [
     # 兩條月度 cron 補進名單(2026-07-11):蓋掉「紅了沒人看見」實測盲區 ——
     # gdrive-organizer 7/1 排程紅了 9 天無人知;th-customs-scan 6/25 崩掉整月沒發現。
     ("th-customs-scan", "scan.yml", "th-customs 月掃", "monthly"),
-    ("gdrive-organizer", "monthly-drive-audit.yml", "gdrive 月審", "monthly"),
+    # 2026-08-23 更正節奏:這條 cron 是 `0 1 1 1,3,5,7,9,11 *`(單數月 1 號)= 雙月,
+    # 不是每月;PR #26 在 gdrive 端改頻率時這裡沒跟著改。用 monthly 的 32 天門檻判它,
+    # 每個 62 天週期會有 30 天被誤判成 ⏰ stale —— 最近一次 run 是 7/25(手動 dispatch),
+    # 7/25+32=8/26 就會開始喊,而下次 cron 是 9/1。檔名 monthly-drive-audit.yml 是
+    # 刻意不改的歷史名(避免斷引用),別拿檔名當節奏依據。
+    ("gdrive-organizer", "monthly-drive-audit.yml", "gdrive 雙月審", "bi-monthly"),
     ("style-superman", "health.yml", "style-superman health", "weekly"),
     ("media-sorter", "ytdlp-weekly-check.yml", "media-sorter ytdlp", "weekly"),
     ("GOLD-ContentSystem", "adoption-metrics.yml", "GOLD adoption", "weekly"),
@@ -89,6 +94,8 @@ _STALE_AFTER = {
     "daily": timedelta(hours=26),
     "weekly": timedelta(days=8),
     "monthly": timedelta(days=32),
+    # 單數月 1 號那種雙月 cron,最長一段是 7/1→9/1 的 62 天(含 31+31);63 給一天餘裕。
+    "bi-monthly": timedelta(days=63),
 }
 
 
@@ -242,7 +249,19 @@ _CADENCE_HUMAN = {
     "daily": "平常每天要跑一次",
     "weekly": "平常每週跑一次",
     "monthly": "平常每月跑一次",
+    "bi-monthly": "平常每兩個月跑一次",
 }
+
+# 節奏打錯字 / 用了沒定義的節奏 → 以前會靜靜退回 daily 的 26 小時門檻,對一條雙月
+# cron 就是每輪喊 30 天假 stale。名單是人手維護的,所以在載入時就叫,不留給執行期。
+_unknown_cadences = sorted(
+    {c for _, _, _, c in MONITORED} - (_STALE_AFTER.keys() & _CADENCE_HUMAN.keys())
+)
+if _unknown_cadences:
+    raise RuntimeError(
+        f"MONITORED 用了未定義的節奏:{_unknown_cadences};"
+        f"請在 _STALE_AFTER 與 _CADENCE_HUMAN 同時補上"
+    )
 
 
 def _assess(
