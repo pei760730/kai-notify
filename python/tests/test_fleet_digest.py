@@ -166,16 +166,26 @@ def test_gdrive_audit_registered_as_bi_monthly():
         "gdrive 雙月審被登記成別的節奏 —— 節奏比 cron 密就會每輪喊假 stale"
     )
     # 62 天的真實間隔必須還算新鮮,63 天才過期。
-    assert fd._assess("gdrive", "bi-monthly", _run("success", 62 * 24 * 60), _NOW)["kind"] == "ok"
-    assert fd._assess("gdrive", "bi-monthly", _run("success", 64 * 24 * 60), _NOW)["kind"] == "stale"
+    assert (
+        fd._assess("gdrive", "bi-monthly", _run("success", 62 * 24 * 60), _NOW)["kind"]
+        == "ok"
+    )
+    assert (
+        fd._assess("gdrive", "bi-monthly", _run("success", 64 * 24 * 60), _NOW)["kind"]
+        == "stale"
+    )
 
 
 def test_every_monitored_cadence_is_defined():
     # 節奏打錯字會靜靜退回 daily 的 26 小時門檻(_STALE_AFTER.get 的預設值),
     # 對任何比 daily 稀疏的 cron 都等於每天喊假 stale。載入期就該叫,不留到執行期。
     for repo, wf, _name, cadence in fd.MONITORED:
-        assert cadence in fd._STALE_AFTER, f"{repo}/{wf} 的節奏 {cadence!r} 沒有 stale 門檻"
-        assert cadence in fd._CADENCE_HUMAN, f"{repo}/{wf} 的節奏 {cadence!r} 沒有白話說明"
+        assert cadence in fd._STALE_AFTER, (
+            f"{repo}/{wf} 的節奏 {cadence!r} 沒有 stale 門檻"
+        )
+        assert cadence in fd._CADENCE_HUMAN, (
+            f"{repo}/{wf} 的節奏 {cadence!r} 沒有白話說明"
+        )
 
 
 def test_assess_frequent_stale_when_idle_too_long():
