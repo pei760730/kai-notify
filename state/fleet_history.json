@@ -37,14 +37,14 @@
  ],
  "_fleet": [
   "green",
-  "green",
+  "problem",
   "problem",
   "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-22",
+ "_last_date": "2026-08-23",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -128,7 +128,7 @@
  ],
  "style-superman/health.yml": [
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -156,10 +156,10 @@
  "th-ops/remind.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
   "ok",
   "ok",
+  "fail",
   "fail"
  ],
  "voc/daily.yml": [
