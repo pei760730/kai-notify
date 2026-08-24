@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-24",
+ "_last_date": "2026-08-25",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -133,7 +133,7 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "ok"
  ],
  "th-customs-scan/scan.yml": [
   "off",
@@ -154,10 +154,10 @@
   "ok"
  ],
  "th-ops/remind.yml": [
-  "ok",
   "fail",
   "ok",
   "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
