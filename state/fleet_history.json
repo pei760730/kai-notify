@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-25",
+ "_last_date": "2026-08-26",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -124,7 +124,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "stale"
  ],
  "style-superman/health.yml": [
   "fail",
@@ -132,7 +132,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok"
  ],
  "th-customs-scan/scan.yml": [
@@ -154,9 +154,9 @@
   "ok"
  ],
  "th-ops/remind.yml": [
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
   "fail",
   "fail",
   "fail",
