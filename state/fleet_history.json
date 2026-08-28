@@ -23,8 +23,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "TeaBus-VOC/daily.yml": [
   "ok",
@@ -32,8 +32,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "_fleet": [
   "problem",
@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-27",
+ "_last_date": "2026-08-28",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -61,7 +61,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "stale"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -114,7 +114,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "stale",
   "stale"
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
@@ -122,7 +122,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "stale",
   "stale",
   "stale"
  ],
@@ -130,7 +130,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -154,13 +154,13 @@
   "ok"
  ],
  "th-ops/remind.yml": [
-  "ok",
   "fail",
   "fail",
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "voc/daily.yml": [
   "ok",
@@ -168,7 +168,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "stale"
+  "stale",
+  "fail"
  ]
 }
