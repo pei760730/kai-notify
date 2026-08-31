@@ -20,17 +20,17 @@
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "ok",
   "ok",
-  "ok",
   "stale",
   "ok",
   "ok",
-  "fail"
+  "fail",
+  "ok"
  ],
  "TeaBus-VOC/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -44,7 +44,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-08-30",
+ "_last_date": "2026-08-31",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -58,10 +58,10 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "stale",
   "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -111,7 +111,7 @@
  "media-sorter/collector.yml": [
   "ok",
   "ok",
-  "ok",
+  "stale",
   "stale",
   "stale",
   "stale",
@@ -119,7 +119,7 @@
  ],
  "media-sorter/ytdlp-weekly-check.yml": [
   "ok",
-  "ok",
+  "stale",
   "stale",
   "stale",
   "stale",
@@ -127,7 +127,7 @@
   "stale"
  ],
  "style-superman/health.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -157,7 +157,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -165,9 +165,9 @@
  "voc/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "stale",
   "fail",
+  "ok",
   "ok",
   "ok"
  ]
