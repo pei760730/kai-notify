@@ -157,6 +157,17 @@ def test_monitored_covers_ig_token_refresh():
     )
 
 
+def test_monitored_covers_fitbit_freshness():
+    # 迴歸釘子(2026-09-02):fitbit 的 freshness.yml 是該 repo 唯一雲端看門狗,
+    # 紅了只停在 Actions 頁 —— 09-01 紅過兩次、owner 收到零則。該 repo 刻意不放
+    # 通知 secret,由本名單讀 run 結論補上最後一哩;cadence 貼著它的每日排程。
+    by_key = {(repo, wf): cadence for repo, wf, _name, cadence in fd.MONITORED}
+    assert ("fitbit", "freshness.yml") in by_key, (
+        "fitbit 新鮮度不在監控名單 —— 攝入停了 owner 不會知道"
+    )
+    assert by_key[("fitbit", "freshness.yml")] == "daily"
+
+
 def test_gdrive_audit_registered_as_bi_monthly():
     # 迴歸釘子(2026-08-23):gdrive 的 cron 是 `0 1 1 1,3,5,7,9,11 *`(單數月 1 號),
     # 最長一段 7/1→9/1 = 62 天。先前登記成 monthly(32 天門檻),於是每個週期會有

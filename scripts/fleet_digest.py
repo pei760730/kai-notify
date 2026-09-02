@@ -86,6 +86,13 @@ MONITORED = [
     # token 續期一週一次;斷掉不會當場痛,60 天後 token 到期整條 ig-insights 線才死,
     # 到時候誰都想不起來是哪一週的續期沒跑。cadence=weekly 讓 stale 判斷貼著排程。
     ("ig-insights-sync", "token-refresh.yml", "ig token 續期", "weekly"),
+    # 2026-09-02 補(帶具體事件重開封版,非泛化加監控):fitbit 健康金庫的 freshness.yml
+    # 是該 repo 唯一的雲端看門狗(攝入跑本機排程、雲端只判新鮮度),它紅了只停在 Actions
+    # 頁 —— 09-01 就紅過兩次(缺 8 月月報),owner 收到零則。該 repo 沒放通知 secret
+    # (健康數據 repo 刻意少放憑證),走本名單不需要任何 secret:digest 只拿 run 的
+    # conclusion + URL、不讀內容,健康數據不出信任圈。private repo:FLEET_READ_TOKEN
+    # 讀不到會印 ?、不會假綠(誠實(a))。
+    ("fitbit", "freshness.yml", "fitbit 新鮮度", "daily"),
 ]
 
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
