@@ -68,6 +68,12 @@
   secret,由名單讀 run 結論補最後一哩。只加一筆 + 迴歸釘子;未動 fail-soft、未改 action
   inputs、未加 out-of-band 通道。
 
+- **補 AV health 進監控名單**(2026-09-03,帶具體事件重開封版):AV 的四層憲法迴圈只在
+  對話開著時轉,臉表 artifact 陳舊三個月、離過期 6 天沒人知道;新裝的週一感測器
+  `health.yml` 紅了會只停在 Actions 頁。該 repo 只有 NOTION_API_TOKEN、刻意不放通知
+  secret,由名單讀 run 結論補最後一哩。只加一筆 + 迴歸釘子;未動 fail-soft、未改 action
+  inputs、未加 out-of-band 通道。
+
 ## Lessons(觸發 → 教訓;理由 / 證據 / 失效條件)
 
 - **觸發:準備在本 repo 動手 → 先 `git fetch origin` + `gh pr list`,確認沒有第二條
