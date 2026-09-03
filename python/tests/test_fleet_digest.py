@@ -630,5 +630,7 @@ def test_monitored_covers_av_health():
     # 迴歸釘子(2026-09-03):AV/health.yml 是該 repo 唯一的感測器,repo 刻意不放通知
     # secret,由本名單讀 run 結論補最後一哩;cadence 貼著它的週一排程。
     by_key = {(repo, wf): cadence for repo, wf, _name, cadence in fd.MONITORED}
-    assert ("AV", "health.yml") in by_key, "AV health 不在監控名單 —— 感測器紅了 owner 不會知道"
+    assert ("AV", "health.yml") in by_key, (
+        "AV health 不在監控名單 —— 感測器紅了 owner 不會知道"
+    )
     assert by_key[("AV", "health.yml")] == "weekly"
