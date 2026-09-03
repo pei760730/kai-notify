@@ -624,3 +624,13 @@ def test_latest_run_is_fail_soft_on_plain_oserror(monkeypatch):
         lambda *a, **k: (_ for _ in ()).throw(OSError("socket closed")),
     )
     assert fd._latest_run("repo", "ci.yml", "tok") == (None, "network")
+
+
+def test_monitored_covers_av_health():
+    # 迴歸釘子(2026-09-03):AV/health.yml 是該 repo 唯一的感測器,repo 刻意不放通知
+    # secret,由本名單讀 run 結論補最後一哩;cadence 貼著它的週一排程。
+    by_key = {(repo, wf): cadence for repo, wf, _name, cadence in fd.MONITORED}
+    assert ("AV", "health.yml") in by_key, (
+        "AV health 不在監控名單 —— 感測器紅了 owner 不會知道"
+    )
+    assert by_key[("AV", "health.yml")] == "weekly"

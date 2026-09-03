@@ -93,6 +93,11 @@ MONITORED = [
     # conclusion + URL、不讀內容,健康數據不出信任圈。private repo:FLEET_READ_TOKEN
     # 讀不到會印 ?、不會假綠(誠實(a))。
     ("fitbit", "freshness.yml", "fitbit 新鮮度", "daily"),
+    # 2026-09-03 補(帶具體事件重開封版):AV 的 health.yml 是該 repo 第一顆感測器 ——
+    # 之前四層憲法的迴圈只在對話開著時轉,臉表 artifact 陳舊三個月、離過期 6 天沒人知道。
+    # 該 repo 只有 NOTION_API_TOKEN、刻意不放通知 secret(不裝 fail-soft 的假通知線),
+    # 走本名單讀 run 結論補最後一哩;cadence 貼著它的週一排程。
+    ("AV", "health.yml", "AV health", "weekly"),
 ]
 
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
