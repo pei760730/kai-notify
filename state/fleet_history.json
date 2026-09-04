@@ -1,4 +1,7 @@
 {
+ "AV/health.yml": [
+  "ok"
+ ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "ok",
   "ok",
@@ -19,8 +22,8 @@
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -44,7 +47,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-03",
+ "_last_date": "2026-09-04",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -55,9 +58,9 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "stale",
   "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -73,6 +76,7 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "ok",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
@@ -136,7 +140,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "th-customs-scan/scan.yml": [
   "off",
@@ -166,7 +170,7 @@
   "ok"
  ],
  "voc/daily.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
