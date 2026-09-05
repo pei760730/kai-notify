@@ -1,5 +1,6 @@
 {
  "AV/health.yml": [
+  "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
@@ -21,8 +22,8 @@
   "ok"
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -47,7 +48,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-04",
+ "_last_date": "2026-09-05",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -58,8 +59,8 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -76,6 +77,7 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "ok",
   "ok",
   "ok"
  ],
@@ -139,8 +141,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "fail"
+  "fail",
+  "ok"
  ],
  "th-customs-scan/scan.yml": [
   "off",
