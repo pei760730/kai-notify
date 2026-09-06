@@ -12,7 +12,12 @@ license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff==0.16.0"]
+# 這裡是 dev 工具釘版的唯一來源。CI 的 lint job 也裝這個 extra,不要在
+# workflow 的 run: 裡另外釘一份 —— 那種寫法對 dependabot 是隱形的(它只讀
+# manifest),而且會跟這裡漂開:2026-09-06 實測 workflow 釘 0.16.4、這裡卻是
+# 0.16.0,GitHub 相依圖看到的是 0.16.0,CI 實際跑的是 0.16.4。本機 format
+# 與 CI 的 `ruff format --check` 用不同版本 = 產出無法合併的 diff。
+dev = ["pytest>=7", "ruff==0.16.4"]
 
 [tool.setuptools]
 packages = ["kai_notify"]
