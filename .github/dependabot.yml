@@ -25,3 +25,22 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # Added 2026-09-06. github-actions was the only ecosystem here, so the Python
+  # dev tooling in python/pyproject.toml had nothing watching it — ruff sat on
+  # 0.16.0 there while CI's own inline pin said 0.16.4 and neither was tracked.
+  # (Verified against this repo's dependency graph: it reports ruff 0.16.0, the
+  # manifest value, proving the workflow's inline pin is invisible.)
+  # directory is /python because that is where the manifest lives.
+  - package-ecosystem: pip
+    directory: /python
+    schedule:
+      interval: cron
+      cronjob: "0 9 1,15 * *"
+      timezone: Asia/Taipei
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns:
+          - "*"

@@ -26,7 +26,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install ruff==0.16.4
+      # ruff 的版本釘在 python/pyproject.toml 的 dev extra(唯一來源),不在這裡
+      # 內嵌 —— 寫在 run: 裡的 pin 對 dependabot 是隱形的,而且會跟 manifest 漂開。
+      - run: pip install -e "./python[dev]"
       - run: ruff check python scripts
       - run: ruff format --check python scripts
 
