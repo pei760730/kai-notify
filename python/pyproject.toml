@@ -17,7 +17,7 @@ dependencies = []
 # manifest),而且會跟這裡漂開:2026-09-06 實測 workflow 釘 0.16.4、這裡卻是
 # 0.16.0,GitHub 相依圖看到的是 0.16.0,CI 實際跑的是 0.16.4。本機 format
 # 與 CI 的 `ruff format --check` 用不同版本 = 產出無法合併的 diff。
-dev = ["pytest>=7", "ruff==0.16.4"]
+dev = ["pytest>=7", "ruff==0.16.5"]
 
 [tool.setuptools]
 packages = ["kai_notify"]
