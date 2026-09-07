@@ -74,6 +74,28 @@
   secret,由名單讀 run 結論補最後一哩。只加一筆 + 迴歸釘子;未動 fail-soft、未改 action
   inputs、未加 out-of-band 通道。
 
+- **名單腐爛的兩種型態,改成機器判**(2026-09-07,帶具體事件重開封版):
+  **事件**:committed `state/fleet_history.json` 顯示 `media-sorter/collector.yml` 與
+  `ytdlp-weekly-check.yml` 兩條 **7/7 天 stale**、`_fleet` **7/7 天 problem** ——
+  而那兩支 workflow 早已從 media-sorter 刪除(下載改走 GAS webhook relay,最後一次
+  collector run 是 08-29)。digest 把「這個檔案不存在」報成「該跑沒跑」,
+  「後端一切正常」整整 13 天不可能出現。同期 `ig-insights-sync` 被 archived,
+  GitHub 停止派送排程卻**不改 workflow 的 state**(token-refresh.yml 實測仍是
+  `active`),它的 8 天 weekly 門檻在 09-07T06:06Z 越線 —— 當天 digest 00:49 跑、
+  差 6 小時擦身而過,隔天就會變成第三條永久假警報。
+  - `_repo_archived()` + `_assess(archived=)`:archived → kind `off`,措辭直接說
+    「請把它從 MONITORED 移掉」。archived 先於 state 與 run 判讀。
+  - `_workflow_states()` **回傳 `dict | None`**(原本讀不到回 `{}`):這份清單同時
+    是「這支還在不在 repo 裡」的唯一依據,`{}` 會讓一次網路失敗把每條監控都判成
+    檔案不見了。`exists=None`(沒讀到)與 `exists=False`(讀到了、沒有它)是相反的
+    兩件事,已用一對正反測試釘死 —— **看門狗把自己的失明報成全世界的死亡,比不報還糟**。
+  - 名單同步收斂 20 → 17 筆:刪 media-sorter 兩筆死靶與 ig-insights-sync 兩筆;
+    media-sorter 的哨兵**換靶不撤哨**,改指向活的 `backlog-watch.yml`(2026-07-26
+    那個 24 天靜默死的教訓沒有過期,所以測試是改指不是刪除)。
+  - 實測(對真 fleet dry-run,不發訊、不動 history):修後「有 **1** 個要你看一下」,
+    且那 1 個是當天第一次出現的真訊號;🔕 th-customs 月掃照列,其他 15 個正常。
+  - ⚠ 未動 fail-soft、未改 action inputs、未加 out-of-band 通道。
+
 ## Lessons(觸發 → 教訓;理由 / 證據 / 失效條件)
 
 - **觸發:準備在本 repo 動手 → 先 `git fetch origin` + `gh pr list`,確認沒有第二條

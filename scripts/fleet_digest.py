@@ -41,13 +41,21 @@ _API = (
 _API_WORKFLOWS = (
     "https://api.github.com/repos/{owner}/{repo}/actions/workflows?per_page=100"
 )
+_API_REPO = "https://api.github.com/repos/{owner}/{repo}"
 _TIMEOUT = 15
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
 # frequent(每 5 分收集 bot)只看最近一次結論、不判 stale(隨時都在跑)。
 MONITORED = [
     ("benchmark-radar", "radar-watchdog.yml", "radar watchdog", "daily"),
-    ("ig-insights-sync", "sync.yml", "ig-insights sync", "daily"),
+    # 2026-09-07 移除 ig-insights-sync 的兩筆(sync.yml / token-refresh.yml):
+    # 該 repo 已 archived(實測 `archived:true`,最後 push 2026-09-04)。archived repo
+    # 是唯讀的、GitHub 停止派送排程,而且**不會把 workflow 的 state 改成 disabled_***
+    # —— token-refresh.yml 至今仍回報 `active`。它的最後一次 run 是 08-30T06:06Z,
+    # weekly 門檻 8 天在 09-07T06:06Z 越線,當天的 digest 剛好 00:49 跑、差 6 小時
+    # 擦身而過,隔天早上就會開始每天喊一次假 ⏰。監控一個結構上不可能再跑的排程
+    # 沒有意義。同批加上 _repo_archived 判讀,讓下一個被封存的 repo 是「被報出來」
+    # 而不是「靜靜地變成假警報」。
     ("voc", "daily.yml", "voc daily", "daily"),
     ("TeaBus-VOC", "daily.yml", "TeaBus-VOC daily", "daily"),
     ("th-ops", "remind.yml", "th-ops remind", "daily"),
@@ -62,7 +70,6 @@ MONITORED = [
     # 刻意不改的歷史名(避免斷引用),別拿檔名當節奏依據。
     ("gdrive-organizer", "monthly-drive-audit.yml", "gdrive 雙月審", "bi-monthly"),
     ("style-superman", "health.yml", "style-superman health", "weekly"),
-    ("media-sorter", "ytdlp-weekly-check.yml", "media-sorter ytdlp", "weekly"),
     ("GOLD-ContentSystem", "adoption-metrics.yml", "GOLD adoption", "weekly"),
     ("KaiOS-ContentSystem", "adoption-metrics.yml", "KaiOS adoption", "weekly"),
     ("KaiOS-ContentSystem", "ig-sheet-sync.yml", "KaiOS ig-sync", "daily"),
@@ -74,7 +81,15 @@ MONITORED = [
     # 下載佇列 collector.yml。結果 2026-07-02～07-26 那條管線因 OAuth token 失效
     # 靜默死 24 天，而看門狗「全綠」——它從一開始就沒被指派去看那裡。這是本次
     # 名單缺口的直接證據，不是泛化的「多監控一點比較好」。
-    ("media-sorter", "collector.yml", "media-sorter collector(下載佇列)", "frequent"),
+    #
+    # 2026-09-07 換靶不撤哨：`collector.yml` 與 `ytdlp-weekly-check.yml` 都已從
+    # media-sorter 刪除(下載改走 GAS webhook relay,最後一次 collector run 是
+    # 08-29),實測該 repo 現存 workflow 只剩 backlog-watch / botinfo / ci。名單還
+    # 指著兩個不存在的檔案 → digest 把「檔案不存在」報成 ⏰ 該跑沒跑,連 12～21 天,
+    # 「後端一切正常」整整 13 天不可能出現。**但上面那個 24 天靜默死的教訓沒有過期**
+    # ——所以不是刪掉了事,是把哨兵改指向現在真正在看佇列健康的 backlog-watch.yml
+    # (cron `23 */6 * * *`,每 6 小時;用 daily 的 26 小時門檻當上限)。
+    ("media-sorter", "backlog-watch.yml", "media-sorter 佇列看門狗", "daily"),
     # daily-brief 是 owner 每天早上真的會讀的東西；斷了只靠「今天沒收到」的缺席
     # 訊號察覺，而缺席訊號要人記得自己沒收到，太弱。
     ("last30days", "daily-brief.yml", "last30days 早報", "daily"),
@@ -83,9 +98,6 @@ MONITORED = [
     # failure → 被呼叫端的 if:failure() 通知免疫;caller 端已加 notify-cancelled
     # (collector PR #91),這裡是第二層——它先前正好也不在本名單,兩層盲區疊好疊滿。
     ("collector", "core-bump.yml", "collector core-bump(依賴升版)", "daily"),
-    # token 續期一週一次;斷掉不會當場痛,60 天後 token 到期整條 ig-insights 線才死,
-    # 到時候誰都想不起來是哪一週的續期沒跑。cadence=weekly 讓 stale 判斷貼著排程。
-    ("ig-insights-sync", "token-refresh.yml", "ig token 續期", "weekly"),
     # 2026-09-02 補(帶具體事件重開封版,非泛化加監控):fitbit 健康金庫的 freshness.yml
     # 是該 repo 唯一的雲端看門狗(攝入跑本機排程、雲端只判新鮮度),它紅了只停在 Actions
     # 頁 —— 09-01 就紅過兩次(缺 8 月月報),owner 收到零則。該 repo 沒放通知 secret
@@ -227,13 +239,16 @@ def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None
         return (None, "network")
 
 
-def _workflow_states(repo: str, token: str) -> dict:
+def _workflow_states(repo: str, token: str) -> dict | None:
     """{workflow 檔名: state} —— state 是 GitHub 對這條 workflow 本身的開關狀態
     (`active` / `disabled_manually` / `disabled_inactivity`),跟「最近一次 run 的
     結論」是兩回事。
 
-    讀不到就回空 dict:這層是補充判讀,失敗只能讓判讀退回原本的行為,
-    絕不能讓整份摘要死掉(fail-soft 是本 repo 地基)。"""
+    **讀不到回 None,不是空 dict**(2026-09-07 改):這份清單同時是「這支 workflow
+    還在不在 repo 裡」的唯一依據,而「我沒讀到」與「我讀到了、裡面沒有它」是相反
+    的兩件事。回空 dict 會讓一次網路失敗把每一條監控都判成「檔案不見了」——
+    看門狗最不能犯的錯就是把自己的失明報成全世界的死亡。fail-soft 不變:回 None
+    時判讀原樣退回 run-based,絕不讓整份摘要死掉。"""
     req = urllib.request.Request(
         _API_WORKFLOWS.format(owner=OWNER, repo=repo),
         headers={
@@ -246,7 +261,7 @@ def _workflow_states(repo: str, token: str) -> dict:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
-        return {}
+        return None
     out = {}
     for wf in data.get("workflows") or []:
         path = wf.get("path") or ""
@@ -254,6 +269,30 @@ def _workflow_states(repo: str, token: str) -> dict:
         if path and state:
             out[path.rsplit("/", 1)[-1]] = state
     return out
+
+
+def _repo_archived(repo: str, token: str) -> bool | None:
+    """這個 repo 是不是已封存(archived)。讀不到回 None。
+
+    archived repo 是唯讀的,**GitHub 會停止派送它的排程,而且不會把 workflow 的
+    state 改成 disabled_*** —— 實測 2026-09-07:ig-insights-sync 已 archived,
+    但 token-refresh.yml 的 state 仍是 `active`。所以既有的 disabled_* 判讀接不住
+    這一類,那條 cron 會靜靜地走進 stale 門檻,然後每天早上喊一次狼來了。"""
+    req = urllib.request.Request(
+        _API_REPO.format(owner=OWNER, repo=repo),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+        return None
+    archived = data.get("archived")
+    return archived if isinstance(archived, bool) else None
 
 
 _CADENCE_HUMAN = {
@@ -282,6 +321,9 @@ def _assess(
     run: dict | None,
     now: datetime,
     state: str | None = None,
+    *,
+    exists: bool | None = None,
+    archived: bool | None = None,
 ) -> dict:
     """判讀一個 cron 的最近狀態，回白話結果。
     kind: ok(正常) / fail(跑失敗) / stale(該跑沒跑) / unknown(讀不到) /
@@ -294,7 +336,42 @@ def _assess(
     2026-08-01 owner 裁示停掉 th-customs-scan/scan.yml(MOC API 對外關閉、每月燒
     runner 到逾時)，那條的最後一次 run 是 07-25 的 cancelled，於是本 digest 從此
     每天回報「❌ th-customs 月掃 — 被中止(連 N 天)」，天數還會一直長。它沒有壞，
-    是被關掉了；把「關掉」講成「壞掉」的看門狗，等於每天都在喊一次狼來了。"""
+    是被關掉了；把「關掉」講成「壞掉」的看門狗，等於每天都在喊一次狼來了。
+
+    `archived` / `exists` 是同一個道理再往外推兩層(2026-09-07，帶具體事件重開封版)：
+    真事故 —— media-sorter 的 `collector.yml` 與 `ytdlp-weekly-check.yml` 已從 repo
+    刪除(改走 GAS webhook relay)，但本名單還指著它們，於是 digest 連 12～21 天把
+    「這個檔案不存在」報成 ⏰ 該跑沒跑，「後端一切正常」整整 13 天不可能出現。
+    同期 ig-insights-sync 被 archived，GitHub 停止派送它的排程卻**不改 workflow 的
+    state**(實測 token-refresh.yml 仍是 `active`)，所以 disabled_* 那層接不住它。
+    兩者都不是「壞掉」，是「不該再被監控」——判成 off，不進「要你看一下」，但依
+    honesty 不變式每天照列一行，逼人去修名單。
+
+    ⚠ `exists=None` 與 `exists=False` 是相反的兩件事：None＝我沒讀到清單(退回
+    run 判讀)，False＝我讀到了、裡面沒有它。把讀取失敗當成「檔案不見了」會讓一次
+    網路抖動把全 fleet 報成消失。"""
+    if archived is True:
+        return {
+            "kind": "off",
+            "name": name,
+            "detail": (
+                "這個 repo 已封存(archived)——GitHub 不會再派送它的排程，"
+                "而且不會把 workflow 改成停用狀態。它不是壞掉，是不該再被監控："
+                "請把它從 kai-notify 的 MONITORED 名單移掉"
+            ),
+            "url": "",
+        }
+    if exists is False:
+        return {
+            "kind": "off",
+            "name": name,
+            "detail": (
+                "這條 workflow 已經不在 repo 裡了(被刪掉或改名)——"
+                "監控名單指著一個不存在的檔案。它不是壞掉，是名單過期了："
+                "請更新 kai-notify 的 MONITORED"
+            ),
+            "url": "",
+        }
     if state == "disabled_manually":
         return {
             "kind": "off",
@@ -391,15 +468,32 @@ def main() -> int:
 
     now = datetime.now(timezone.utc)
     # 每個 repo 只問一次 workflow 清單(拿開關狀態),同 repo 的多條 cron 共用。
-    states: dict = {}
+    # 每個 repo 只問一次 workflow 清單(開關狀態 + 這支還在不在)與封存狀態,
+    # 同 repo 的多條 cron 共用。兩者都可能是 None = 沒讀到,要跟「讀到了但沒有」分開。
+    states: dict[str, dict | None] = {}
+    archived: dict[str, bool | None] = {}
     for repo in dict.fromkeys(r for r, _wf, _n, _c in MONITORED):
         states[repo] = _workflow_states(repo, token)
+        archived[repo] = _repo_archived(repo, token)
 
-    reads = []  # (key, name, cadence, run, err, state)
+    reads = []  # (key, name, cadence, run, err, state, exists, archived)
     for repo, wf, name, cadence in MONITORED:
         run, err = _latest_run(repo, wf, token)
+        repo_states = states.get(repo)
+        # exists: None=沒讀到清單(判讀退回 run-based); True/False=讀到了的事實。
+        exists = None if repo_states is None else (wf in repo_states)
+        state = repo_states.get(wf) if repo_states else None
         reads.append(
-            (f"{repo}/{wf}", name, cadence, run, err, states.get(repo, {}).get(wf))
+            (
+                f"{repo}/{wf}",
+                name,
+                cadence,
+                run,
+                err,
+                state,
+                exists,
+                archived.get(repo),
+            )
         )
 
     # (a) 誠實:一大片讀取因 PAT/限流失敗 = 我根本沒法驗健康,絕不能假裝全綠。
@@ -416,8 +510,8 @@ def main() -> int:
 
     history = _load_history()
     assessed = []
-    for key, name, cadence, run, _err, state in reads:
-        a = _assess(name, cadence, run, now, state)
+    for key, name, cadence, run, _err, state, exists, is_archived in reads:
+        a = _assess(name, cadence, run, now, state, exists=exists, archived=is_archived)
         a["key"] = key
         # 用「今天以前」的歷史(還沒 append 今天)判讀趨勢。
         prior = history.get(key, [])

@@ -43,10 +43,16 @@ def _isolate_state(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _no_network_workflow_states(monkeypatch):
-    """main() also asks GitHub for each workflow's on/off state. Default it to
-    "read nothing" so every existing test stays offline and behaves exactly as
-    it did before that lookup existed; tests that care override it."""
-    monkeypatch.setattr(fd, "_workflow_states", lambda repo, token: {})
+    """main() also asks GitHub for each workflow's on/off state and whether the
+    repo is archived. Default both to "couldn't read" so every existing test stays
+    offline and behaves exactly as it did before those lookups existed; tests that
+    care override them.
+
+    ⚠ 2026-09-07:這裡必須是 None 而不是 {}。改判讀之後 {} 的意思變成「我成功讀到
+    清單了,而且裡面一支都沒有」= 每條監控的檔案都不存在,整份 digest 會被判成 off。
+    None 才是「沒讀到」,判讀退回 run-based —— 也就是這些測試原本要驗的路徑。"""
+    monkeypatch.setattr(fd, "_workflow_states", lambda repo, token: None)
+    monkeypatch.setattr(fd, "_repo_archived", lambda repo, token: None)
 
 
 def _run(conclusion, mins_ago, url="https://gh/run/1"):
@@ -128,13 +134,22 @@ def test_assess_cancelled_is_a_problem():
     assert "中止" in a["detail"]
 
 
-def test_monitored_covers_media_sorter_download_queue():
+def test_monitored_covers_media_sorter_queue_health():
     # 名單缺口的迴歸釘子:本 repo 曾只監控 media-sorter 的 ytdlp 週檢，沒監控真正的
-    # 下載佇列 collector.yml，於是那條管線死 24 天而 digest 全綠。
+    # 下載佇列，於是那條管線死 24 天而 digest 全綠。
+    #
+    # 2026-09-07 換靶不撤哨:collector.yml / ytdlp-weekly-check.yml 都已從該 repo
+    # 刪除(下載改走 GAS webhook relay)，哨兵改指向現在真正看佇列健康的
+    # backlog-watch.yml。**上面那個教訓沒有過期，所以這支測試不是刪掉而是改指**。
     entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
-    assert ("media-sorter", "collector.yml") in entries, (
-        "media-sorter 的下載佇列不在監控名單 —— 它死掉時 digest 會報全綠"
+    assert ("media-sorter", "backlog-watch.yml") in entries, (
+        "media-sorter 的佇列健康不在監控名單 —— 它死掉時 digest 會報全綠"
     )
+    # 名單指著不存在的檔案 = digest 把「檔案不見了」報成「該跑沒跑」，連喊 21 天。
+    for dead in ("collector.yml", "ytdlp-weekly-check.yml"):
+        assert ("media-sorter", dead) not in entries, (
+            f"{dead} 已從 media-sorter 刪除，留在名單裡只會每天產生一則假 ⏰"
+        )
 
 
 def test_monitored_covers_collector_core_bump():
@@ -148,12 +163,17 @@ def test_monitored_covers_collector_core_bump():
     )
 
 
-def test_monitored_covers_ig_token_refresh():
-    # 迴歸釘子(2026-07-31):token 續期斷掉不當場痛,60 天後整條線才死,
-    # 缺席訊號等於沒有訊號。
-    entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
-    assert ("ig-insights-sync", "token-refresh.yml") in entries, (
-        "ig token 續期不在監控名單 —— 靜默斷掉會在 60 天後以斷線形式引爆"
+def test_archived_repo_is_not_monitored():
+    # 原本這裡釘的是「ig token 續期必須在名單裡」(2026-07-31)。2026-09-07 該 repo
+    # 已 archived —— archived repo 唯讀、GitHub 停止派送排程，卻**不會**把 workflow
+    # 的 state 改成 disabled_*(實測 token-refresh.yml 仍回報 active)，所以它只會
+    # 靜靜走進 stale 門檻然後每天喊一次假 ⏰。監控一個結構上不可能再跑的排程沒有意義。
+    #
+    # 這條是弱釘子(釘值)；真正的防線是下面 _assess 的 archived / exists 行為測試 ——
+    # 那組保證下一個被封存或被刪掉的目標會「被報出來」而不是「變成假警報」。
+    repos = {repo for repo, _wf, _name, _cadence in fd.MONITORED}
+    assert "ig-insights-sync" not in repos, (
+        "ig-insights-sync 已 archived，留在名單裡每天都會產生假 ⏰"
     )
 
 
@@ -461,6 +481,72 @@ def test_assess_disabled_beats_a_frozen_bad_run():
     assert fd._assess("x", "daily", stale_fail, _NOW, None)["kind"] == "fail"
 
 
+# ── 名單腐爛:目標被刪掉 / repo 被封存 ────────────────────────────────────────
+#
+# 真事故(2026-09-07 實測):media-sorter 的 collector.yml 與 ytdlp-weekly-check.yml
+# 都已從 repo 刪除(下載改走 GAS webhook relay,最後一次 collector run 是 08-29),
+# 但 MONITORED 還指著它們。digest 於是把「這個檔案不存在」報成 ⏰ 該跑沒跑,
+# 連續 12～21 天,「後端一切正常」整整 13 天不可能出現。
+# 同期 ig-insights-sync 被 archived,GitHub 停止派送排程卻不改 workflow 的 state
+# (token-refresh.yml 至今仍是 active),所以 disabled_* 那層完全接不住。
+def test_assess_deleted_workflow_is_not_a_failure():
+    """名單指著一個已經不存在的檔案 —— 那是名單過期,不是 cron 壞掉。"""
+    stale = _run(
+        "success", 400 * 24 * 60
+    )  # 又老(GitHub 會保留已刪 workflow 的 run 歷史)
+    a = fd._assess(
+        "media-sorter collector", "frequent", stale, _NOW, None, exists=False
+    )
+    assert a["kind"] == "off", "檔案不存在被報成該跑沒跑 = 每天一則假警報"
+    assert "不在 repo 裡" in a["detail"]
+
+
+def test_assess_unreadable_workflow_list_is_not_deleted():
+    """**本組最重要的一條**:exists=None(沒讀到清單)絕不可以被當成 exists=False
+    (讀到了、裡面沒有它)。把自己的失明報成全世界的死亡,是看門狗最不能犯的錯 ——
+    一次網路抖動就會讓整份 digest 變成「所有 cron 都消失了」。"""
+    stale = _run("success", 400 * 24 * 60)
+    a = fd._assess("x", "daily", stale, _NOW, None, exists=None)
+    assert a["kind"] == "stale", "讀不到清單時判讀必須原樣退回 run-based"
+
+
+def test_assess_archived_repo_is_not_a_failure():
+    """archived repo 唯讀、排程不再派送,但 workflow 的 state 仍是 active ——
+    這是 disabled_* 接不住、只能靠 repo 層判斷的一類。"""
+    stale = _run("success", 30 * 24 * 60)
+    a = fd._assess("ig token 續期", "weekly", stale, _NOW, "active", archived=True)
+    assert a["kind"] == "off"
+    assert "封存" in a["detail"]
+
+
+def test_assess_archived_beats_everything_else():
+    """repo 層的封存要先於 workflow 層的 state 與 run —— 否則凍結的舊 run 會蓋過它。"""
+    stale_fail = _run("failure", 400 * 24 * 60)
+    assert (
+        fd._assess("x", "daily", stale_fail, _NOW, "active", archived=True)["kind"]
+        == "off"
+    )
+    # 反向:沒封存(False)或讀不到(None)時,行為完全不變
+    for archived in (False, None):
+        assert (
+            fd._assess("x", "daily", stale_fail, _NOW, "active", archived=archived)[
+                "kind"
+            ]
+            == "fail"
+        ), f"archived={archived} 不該改變判讀"
+
+
+def test_deleted_and_archived_still_get_a_line_every_day():
+    """honesty 不變式:可以不喊狼,不可以假裝那條 cron 不存在。
+    兩者都判 off —— off 不進「要你看一下」的計數,但每天照列在「另外」區塊。"""
+    stale = _run("success", 400 * 24 * 60)
+    gone = fd._assess("a", "daily", stale, _NOW, None, exists=False)
+    arch = fd._assess("b", "daily", stale, _NOW, "active", archived=True)
+    for a in (gone, arch):
+        assert a["kind"] == "off"
+        assert a["kind"] in fd._NEUTRAL_KINDS, "off 必須是中性 kind,不計入健康趨勢"
+
+
 def test_assess_inactivity_disabled_is_loud():
     """GitHub 會把「repo 太久沒動靜」的排程自動關掉,而且不通知任何人 ——
     這是真的靜默死亡,跟人為停用必須分開報,不可以一起被靜音。"""
@@ -487,10 +573,19 @@ def _all_success_except_disabled(monkeypatch, disabled_repo, disabled_wf, state)
             else (_recent("success", 10), None)
         ),
     )
+
+    def _states(repo, token):
+        # 從 MONITORED 推導,不手寫清單:2026-09-07 起「讀到了、裡面沒有它」
+        # 就是「這支被刪了」,所以少列一支等於把它判成消失。
+        out = {wf: "active" for r, wf, _n, _c in fd.MONITORED if r == repo}
+        if repo == disabled_repo:
+            out[disabled_wf] = state
+        return out
+
     monkeypatch.setattr(
         fd,
         "_workflow_states",
-        lambda repo, token: {disabled_wf: state} if repo == disabled_repo else {},
+        _states,
     )
 
 
@@ -560,13 +655,21 @@ def test_workflow_states_maps_basename_to_state(monkeypatch):
 
 
 def test_workflow_states_is_fail_soft(monkeypatch):
-    """讀不到就回空 dict,讓判讀退回原本行為 —— 絕不能讓整份摘要死掉。"""
+    """讀不到就回 None,讓判讀退回原本行為 —— 絕不能讓整份摘要死掉。
+
+    ⚠ 2026-09-07 從 `{}` 改成 `None`,而且這個差別是承重的:這份清單同時是
+    「這支 workflow 還在不在 repo 裡」的唯一依據。回 `{}` 的話,一次網路失敗
+    就等於宣告「這個 repo 一支 workflow 都沒有」= 每條監控都被判成檔案不見了。
+    看門狗把自己的失明報成全世界的死亡,比不報還糟。"""
 
     def boom(req, timeout=None):
         raise OSError("network down")
 
     monkeypatch.setattr(fd.urllib.request, "urlopen", boom)
-    assert _REAL_WORKFLOW_STATES("any", "tok") == {}
+    assert _REAL_WORKFLOW_STATES("any", "tok") is None
+    assert _REAL_WORKFLOW_STATES("any", "tok") != {}, (
+        "回 {} 會被判讀成『讀到了、這個 repo 沒有任何 workflow』"
+    )
 
 
 def test_save_history_is_fail_soft(monkeypatch):
