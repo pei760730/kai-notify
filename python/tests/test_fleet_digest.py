@@ -491,8 +491,12 @@ def test_assess_disabled_beats_a_frozen_bad_run():
 # (token-refresh.yml 至今仍是 active),所以 disabled_* 那層完全接不住。
 def test_assess_deleted_workflow_is_not_a_failure():
     """名單指著一個已經不存在的檔案 —— 那是名單過期,不是 cron 壞掉。"""
-    stale = _run("success", 400 * 24 * 60)  # 又老(GitHub 會保留已刪 workflow 的 run 歷史)
-    a = fd._assess("media-sorter collector", "frequent", stale, _NOW, None, exists=False)
+    stale = _run(
+        "success", 400 * 24 * 60
+    )  # 又老(GitHub 會保留已刪 workflow 的 run 歷史)
+    a = fd._assess(
+        "media-sorter collector", "frequent", stale, _NOW, None, exists=False
+    )
     assert a["kind"] == "off", "檔案不存在被報成該跑沒跑 = 每天一則假警報"
     assert "不在 repo 裡" in a["detail"]
 
@@ -569,6 +573,7 @@ def _all_success_except_disabled(monkeypatch, disabled_repo, disabled_wf, state)
             else (_recent("success", 10), None)
         ),
     )
+
     def _states(repo, token):
         # 從 MONITORED 推導,不手寫清單:2026-09-07 起「讀到了、裡面沒有它」
         # 就是「這支被刪了」,所以少列一支等於把它判成消失。

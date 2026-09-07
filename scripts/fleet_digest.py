@@ -511,9 +511,7 @@ def main() -> int:
     history = _load_history()
     assessed = []
     for key, name, cadence, run, _err, state, exists, is_archived in reads:
-        a = _assess(
-            name, cadence, run, now, state, exists=exists, archived=is_archived
-        )
+        a = _assess(name, cadence, run, now, state, exists=exists, archived=is_archived)
         a["key"] = key
         # 用「今天以前」的歷史(還沒 append 今天)判讀趨勢。
         prior = history.get(key, [])
