@@ -2,6 +2,7 @@
  "AV/health.yml": [
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
@@ -49,7 +50,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-06",
+ "_last_date": "2026-09-07",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -78,6 +79,7 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -141,8 +143,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok"
  ],
