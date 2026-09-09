@@ -4,6 +4,7 @@
   "ok",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
@@ -48,10 +49,10 @@
   "problem",
   "problem",
   "problem",
-  "problem",
+  "green",
   "green"
  ],
- "_last_date": "2026-09-08",
+ "_last_date": "2026-09-09",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -80,6 +81,7 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -124,6 +126,7 @@
   "ok"
  ],
  "media-sorter/backlog-watch.yml": [
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
@@ -146,8 +149,8 @@
  ],
  "style-superman/health.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
