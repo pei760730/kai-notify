@@ -5,6 +5,7 @@
   "ok",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
@@ -48,11 +49,11 @@
   "problem",
   "problem",
   "problem",
-  "problem",
+  "green",
   "green",
   "green"
  ],
- "_last_date": "2026-09-09",
+ "_last_date": "2026-09-10",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -127,6 +128,7 @@
  ],
  "media-sorter/backlog-watch.yml": [
   "ok",
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
@@ -148,8 +150,8 @@
   "stale"
  ],
  "style-superman/health.yml": [
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
