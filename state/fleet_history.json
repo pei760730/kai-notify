@@ -24,7 +24,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "off"
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "ok",
@@ -45,7 +45,7 @@
   "ok"
  ],
  "_fleet": [
-  "problem",
+  "green",
   "green",
   "green",
   "green",
@@ -53,7 +53,7 @@
   "green",
   "green"
  ],
- "_last_date": "2026-09-13",
+ "_last_date": "2026-09-14",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -127,6 +127,7 @@
   "ok"
  ],
  "media-sorter/backlog-watch.yml": [
+  "ok",
   "ok",
   "ok",
   "ok",
