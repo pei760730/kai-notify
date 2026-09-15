@@ -6,7 +6,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "ok",
@@ -23,7 +23,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "off",
   "off"
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
@@ -51,9 +51,9 @@
   "green",
   "green",
   "green",
-  "green"
+  "problem"
  ],
- "_last_date": "2026-09-14",
+ "_last_date": "2026-09-15",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -88,7 +88,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
