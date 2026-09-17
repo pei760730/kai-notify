@@ -4,7 +4,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -21,7 +21,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "off",
   "off",
   "off",
   "off"
@@ -49,11 +49,11 @@
   "green",
   "green",
   "green",
-  "green",
+  "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-16",
+ "_last_date": "2026-09-17",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -86,8 +86,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
@@ -196,6 +196,6 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ]
 }
