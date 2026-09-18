@@ -3,7 +3,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -20,7 +20,7 @@
  "KaiOS-ContentSystem/adoption-metrics.yml": [
   "ok",
   "ok",
-  "ok",
+  "off",
   "off",
   "off",
   "off",
@@ -48,12 +48,12 @@
   "green",
   "green",
   "green",
-  "green",
+  "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-17",
+ "_last_date": "2026-09-18",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -85,10 +85,10 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -195,7 +195,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail"
  ]
 }
