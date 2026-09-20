@@ -1,7 +1,7 @@
 {
  "AV/health.yml": [
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -14,11 +14,11 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "off",
   "off"
  ],
  "KaiOS-ContentSystem/adoption-metrics.yml": [
-  "ok",
+  "off",
   "off",
   "off",
   "off",
@@ -46,14 +46,14 @@
  ],
  "_fleet": [
   "green",
-  "green",
+  "problem",
   "problem",
   "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-19",
+ "_last_date": "2026-09-20",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -83,10 +83,10 @@
  ],
  "fitbit/freshness.yml": [
   "ok",
-  "ok",
   "fail",
   "ok",
   "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -193,9 +193,9 @@
   "ok",
   "ok",
   "ok",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok"
  ]
 }
