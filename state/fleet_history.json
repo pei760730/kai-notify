@@ -1,6 +1,6 @@
 {
  "AV/health.yml": [
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -13,7 +13,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "off",
   "off",
   "off"
  ],
@@ -45,7 +45,7 @@
   "ok"
  ],
  "_fleet": [
-  "green",
+  "problem",
   "problem",
   "problem",
   "problem",
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-20",
+ "_last_date": "2026-09-21",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -82,10 +82,10 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
-  "ok",
   "fail",
   "ok",
   "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -192,9 +192,9 @@
  "voc/daily.yml": [
   "ok",
   "ok",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok",
   "ok"
  ]
