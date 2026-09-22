@@ -12,7 +12,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "off",
   "off",
   "off",
   "off"
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-21",
+ "_last_date": "2026-09-22",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -82,13 +82,13 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
-  "fail",
   "ok",
   "ok",
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -191,9 +191,9 @@
  ],
  "voc/daily.yml": [
   "ok",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok"
