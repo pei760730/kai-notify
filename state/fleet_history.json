@@ -6,12 +6,12 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "ok",
   "ok",
-  "ok",
+  "off",
   "off",
   "off",
   "off",
@@ -51,9 +51,9 @@
   "problem",
   "problem",
   "problem",
-  "problem"
+  "green"
  ],
- "_last_date": "2026-09-22",
+ "_last_date": "2026-09-23",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -83,11 +83,11 @@
  ],
  "fitbit/freshness.yml": [
   "ok",
+  "fail",
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
-  "fail",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
@@ -190,9 +190,9 @@
   "ok"
  ],
  "voc/daily.yml": [
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok",
