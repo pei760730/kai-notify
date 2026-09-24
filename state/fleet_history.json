@@ -5,12 +5,12 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "ok",
-  "ok",
+  "off",
   "off",
   "off",
   "off",
@@ -50,10 +50,10 @@
   "problem",
   "problem",
   "problem",
-  "problem",
+  "green",
   "green"
  ],
- "_last_date": "2026-09-23",
+ "_last_date": "2026-09-24",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -82,11 +82,11 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "fail",
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
-  "fail",
   "ok",
   "ok"
  ],
@@ -191,7 +191,7 @@
  ],
  "voc/daily.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
