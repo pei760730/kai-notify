@@ -4,12 +4,12 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
-  "ok",
+  "off",
   "off",
   "off",
   "off",
@@ -49,11 +49,11 @@
   "problem",
   "problem",
   "problem",
-  "problem",
+  "green",
   "green",
   "green"
  ],
- "_last_date": "2026-09-24",
+ "_last_date": "2026-09-25",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -85,7 +85,7 @@
   "fail",
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -190,7 +190,7 @@
   "ok"
  ],
  "voc/daily.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
