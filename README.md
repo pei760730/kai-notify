@@ -140,7 +140,7 @@ The same is available to yml-only workflows via the action:
 Across Kai's backend, the scheduled crons report through this one action:
 
 - **report crons** (voc, TeaBus-VOC, th-ops, style-superman, media-sorter,
-  GOLD, KaiOS, benchmark-radar, ig-insights-sync) push a one-line status —
+  GOLD, KaiOS, benchmark-radar) push a one-line status —
   wired `if: failure()`, so a healthy run stays silent and only real failures
   ping (with a run link).
 - **collector** (one repo, three matrix targets voc/tbvoc/of; formerly
