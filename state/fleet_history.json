@@ -1,7 +1,7 @@
 {
  "AV/health.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -46,14 +46,14 @@
  ],
  "_fleet": [
   "problem",
+  "green",
+  "green",
+  "green",
+  "green",
   "problem",
-  "green",
-  "green",
-  "green",
-  "green",
   "problem"
  ],
- "_last_date": "2026-09-27",
+ "_last_date": "2026-09-28",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -70,7 +70,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "stale"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -82,13 +82,13 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
+  "ok",
+  "ok",
+  "ok",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
-  "fail"
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
