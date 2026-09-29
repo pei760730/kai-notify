@@ -1,12 +1,12 @@
 {
  "AV/health.yml": [
-  "fail",
   "ok",
   "ok",
   "ok",
   "ok",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
   "off",
@@ -45,15 +45,15 @@
   "ok"
  ],
  "_fleet": [
+  "green",
+  "green",
+  "green",
+  "green",
   "problem",
-  "green",
-  "green",
-  "green",
-  "green",
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-28",
+ "_last_date": "2026-09-29",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -69,8 +69,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -86,9 +86,9 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
-  "ok"
+  "ok",
+  "fail"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
