@@ -70,8 +70,12 @@ MONITORED = [
     # 刻意不改的歷史名(避免斷引用),別拿檔名當節奏依據。
     ("gdrive-organizer", "monthly-drive-audit.yml", "gdrive 雙月審", "bi-monthly"),
     ("style-superman", "health.yml", "style-superman health", "weekly"),
-    ("GOLD-ContentSystem", "adoption-metrics.yml", "GOLD adoption", "weekly"),
-    ("KaiOS-ContentSystem", "adoption-metrics.yml", "KaiOS adoption", "weekly"),
+    # 2026-09-30 移除 GOLD / KaiOS 的 adoption-metrics.yml 兩筆:兩個 repo 的預設分支
+    # 都已沒有這支檔案(API `workflows/adoption-metrics.yml` 回 state=`deleted`,
+    # workflow 清單只剩 engine-version-check / rules-lint 等),名單指著不存在的檔案,
+    # digest 只能每天報一行「名單過期」的 off(fleet_history 已連 7 天 off)。
+    # 只移除「確認已不存在」的引用;沒有新增任何監控(是否改盯 engine-version-check
+    # 是 owner 的 ownership 決定,不在此處夾帶)。
     ("KaiOS-ContentSystem", "ig-sheet-sync.yml", "KaiOS ig-sync", "daily"),
     # #9 三併一(2026-07-15):short-video-bot 改名 collector,clip-collector/feed-collector
     # 併入後 archive。三條收集線=同一條 collect.yml 的三個 matrix job(fail-fast:false,

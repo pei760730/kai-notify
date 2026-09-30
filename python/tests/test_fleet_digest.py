@@ -152,6 +152,16 @@ def test_monitored_covers_media_sorter_queue_health():
         )
 
 
+def test_monitored_has_no_deleted_adoption_metrics():
+    # 2026-09-30:GOLD / KaiOS 的 adoption-metrics.yml 已從預設分支消失(API 回
+    # state=deleted)。留在名單 = 每天一行「名單過期」的 off,永遠不會自己好。
+    entries = {(repo, wf) for repo, wf, _name, _cadence in fd.MONITORED}
+    for repo in ("GOLD-ContentSystem", "KaiOS-ContentSystem"):
+        assert (repo, "adoption-metrics.yml") not in entries, (
+            f"{repo}/adoption-metrics.yml 已刪除，不該還在 MONITORED"
+        )
+
+
 def test_monitored_covers_collector_core_bump():
     # 迴歸釘子(2026-07-31):core-bump 是 reusable caller,被呼叫端 timeout 逾時
     # = cancelled、if:failure() 通知免疫;它同時又不在本名單 → 兩層盲區疊加,
