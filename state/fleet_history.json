@@ -5,7 +5,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail"
  ],
  "GOLD-ContentSystem/adoption-metrics.yml": [
@@ -48,12 +48,12 @@
   "green",
   "green",
   "green",
-  "green",
+  "problem",
   "problem",
   "problem",
   "problem"
  ],
- "_last_date": "2026-09-29",
+ "_last_date": "2026-09-30",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -68,8 +68,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "stale",
+  "ok",
   "ok"
  ],
  "collector/core-bump.yml": [
@@ -85,10 +85,10 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
   "ok",
-  "fail"
+  "fail",
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
