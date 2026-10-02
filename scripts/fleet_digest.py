@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -43,6 +44,11 @@ _API_WORKFLOWS = (
 )
 _API_REPO = "https://api.github.com/repos/{owner}/{repo}"
 _TIMEOUT = 15
+# Internal polling budget: leave 120s of the 10-minute job for notification
+# (its own retry budget is 25s), setup and persistence. This only bounds query
+# admission: socket timeouts and time spent before this script are not an
+# absolute OS/job deadline guarantee. Keep the existing per-request timeout.
+_POLL_BUDGET = 480.0
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
 # frequent(每 5 分收集 bot)只看最近一次結論、不判 stale(隨時都在跑)。
@@ -471,17 +477,40 @@ def main() -> int:
         return 0
 
     now = datetime.now(timezone.utc)
+    deadline = time.monotonic() + _POLL_BUDGET
+
+    def _stop_polling() -> bool:
+        # Reserve a full request timeout before starting another serial lookup.
+        if deadline - time.monotonic() >= _TIMEOUT:
+            return False
+        sent = notify(
+            "🌅 早安 Kai — ⚠️ 這輪掃描未完成（讀取耗時超出預算），"
+            "fleet 健康報不準，先別當全綠。歷史保留上一輪，不寫入這次的部分結果。"
+            "\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
+        )
+        print(
+            "fleet-digest: incomplete scan (history untouched);",
+            "sent." if sent else "skipped/failed (fail-soft).",
+        )
+        return True
+
     # 每個 repo 只問一次 workflow 清單(拿開關狀態),同 repo 的多條 cron 共用。
     # 每個 repo 只問一次 workflow 清單(開關狀態 + 這支還在不在)與封存狀態,
     # 同 repo 的多條 cron 共用。兩者都可能是 None = 沒讀到,要跟「讀到了但沒有」分開。
     states: dict[str, dict | None] = {}
     archived: dict[str, bool | None] = {}
     for repo in dict.fromkeys(r for r, _wf, _n, _c in MONITORED):
+        if _stop_polling():
+            return 0
         states[repo] = _workflow_states(repo, token)
+        if _stop_polling():
+            return 0
         archived[repo] = _repo_archived(repo, token)
 
     reads = []  # (key, name, cadence, run, err, state, exists, archived)
     for repo, wf, name, cadence in MONITORED:
+        if _stop_polling():
+            return 0
         run, err = _latest_run(repo, wf, token)
         repo_states = states.get(repo)
         # exists: None=沒讀到清單(判讀退回 run-based); True/False=讀到了的事實。

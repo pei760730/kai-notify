@@ -11,6 +11,7 @@ import io
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -33,6 +34,7 @@ _NOW = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
 # The autouse fixture below stubs fd._workflow_states for every test; grab the
 # real one now so the two tests that exercise it directly aren't testing the stub.
 _REAL_WORKFLOW_STATES = fd._workflow_states
+_REAL_REPO_ARCHIVED = fd._repo_archived
 
 
 @pytest.fixture(autouse=True)
@@ -747,3 +749,134 @@ def test_monitored_covers_av_health():
         "AV health 不在監控名單 —— 感測器紅了 owner 不會知道"
     )
     assert by_key[("AV", "health.yml")] == "weekly"
+
+
+def _polling_scenario(monkeypatch, *, delays=None, default_delay=0, error=None):
+    """Exercise the real serial lookup helpers without network or wall-clock waits."""
+    box = {"now": 0.0, "calls": [], "sent": [], "saved": []}
+    prior = {"_last_date": "2000-01-01", "_fleet": ["green"]}
+    box["history"] = prior
+    monkeypatch.setenv("FLEET_READ_TOKEN", "synthetic-token")
+    # Replace the module binding, not the shared time module used by other tests.
+    monkeypatch.setattr(
+        fd, "time", SimpleNamespace(monotonic=lambda: box["now"]), raising=False
+    )
+    monkeypatch.setattr(fd, "_workflow_states", _REAL_WORKFLOW_STATES)
+    monkeypatch.setattr(fd, "_repo_archived", _REAL_REPO_ARCHIVED)
+    monkeypatch.setattr(fd, "_load_history", lambda: prior)
+    monkeypatch.setattr(fd, "_save_history", lambda hist: box["saved"].append(hist))
+    monkeypatch.setattr(
+        fd, "notify", lambda text: box["sent"].append((box["now"], text)) or True
+    )
+
+    def fake_urlopen(req, timeout):
+        assert timeout == 15  # The repair must keep the existing per-request timeout.
+        box["calls"].append(req.full_url)
+        box["now"] += (delays or {}).get(len(box["calls"]), default_delay)
+        if error == "timeout":
+            raise TimeoutError("synthetic timeout")
+        if error == "auth":
+            _raise_http(401)
+        repo = req.full_url.split("/repos/pei760730/", 1)[1].split("/", 1)[0]
+        if "/runs?" in req.full_url:
+            return _FakeResp({"workflow_runs": [_recent("success", 1)]})
+        if "/actions/workflows?" in req.full_url:
+            return _FakeResp(
+                {
+                    "workflows": [
+                        {"path": f".github/workflows/{wf}", "state": "active"}
+                        for r, wf, _name, _cadence in fd.MONITORED
+                        if r == repo
+                    ]
+                }
+            )
+        return _FakeResp({"archived": False})
+
+    monkeypatch.setattr(fd.urllib.request, "urlopen", fake_urlopen)
+    return box
+
+
+def _assert_incomplete_poll(box):
+    assert len(box["sent"]) == 1
+    at, text = box["sent"][0]
+    assert at < 600, f"heartbeat arrived at {at}s, after the job deadline"
+    assert "掃描未完成" in text and "報不準" in text
+    assert "一切正常" not in text and "PAT 可能失效" not in text
+    assert box["saved"] == []
+    assert box["history"] == {"_last_date": "2000-01-01", "_fleet": ["green"]}
+
+
+def test_polling_all_slow_sends_before_job_deadline(monkeypatch):
+    box = _polling_scenario(monkeypatch, default_delay=15, error="timeout")
+    assert fd.main() == 0
+    _assert_incomplete_poll(box)
+    assert box["now"] <= 480
+    assert len(box["calls"]) < 2 * len({r for r, *_ in fd.MONITORED}) + len(
+        fd.MONITORED
+    )
+
+
+@pytest.mark.parametrize("elapsed", [464.999, 465.0, 465.001, 480.0])
+def test_polling_reserves_a_full_request_timeout(monkeypatch, elapsed):
+    # A clock jump during a read represents time already consumed; admission
+    # depends on remaining budget, not a claim that socket reads are hard-bounded.
+    box = _polling_scenario(monkeypatch, delays={1: elapsed})
+    assert fd.main() == 0
+    if elapsed > 465:
+        assert len(box["calls"]) == 1  # Do not start the first archive query.
+        _assert_incomplete_poll(box)
+    else:
+        assert len(box["calls"]) > 1  # Exactly 15 seconds remaining is sufficient.
+        assert len(box["sent"]) == 1 and "掃描未完成" not in box["sent"][0][1]
+
+
+def test_polling_checks_budget_after_archive_read(monkeypatch):
+    box = _polling_scenario(monkeypatch, delays={2: 466})
+    assert fd.main() == 0
+    assert len(box["calls"]) == 2  # No next repository's workflow query.
+    _assert_incomplete_poll(box)
+
+
+def test_polling_partial_success_does_not_advance_history(monkeypatch):
+    metadata_reads = 2 * len({r for r, *_ in fd.MONITORED})
+    box = _polling_scenario(monkeypatch, delays={metadata_reads + 1: 466})
+    assert fd.main() == 0
+    assert len(box["calls"]) == metadata_reads + 1
+    assert "/runs?" in box["calls"][-1]  # One successful run was read.
+    _assert_incomplete_poll(box)
+
+
+def test_polling_fast_success_keeps_normal_digest(monkeypatch):
+    box = _polling_scenario(monkeypatch, default_delay=1)
+    assert fd.main() == 0
+    assert len(box["sent"]) == 1 and "掃描未完成" not in box["sent"][0][1]
+    assert len(box["saved"]) == 1
+
+
+def test_polling_auth_failure_keeps_existing_degraded_message(monkeypatch):
+    box = _polling_scenario(monkeypatch, error="auth")
+    assert fd.main() == 0
+    assert len(box["sent"]) == 1 and "PAT 可能失效" in box["sent"][0][1]
+    assert box["saved"] == []
+
+
+def test_polling_missing_token_skips_all_queries(monkeypatch):
+    box = _polling_scenario(monkeypatch)
+    monkeypatch.delenv("FLEET_READ_TOKEN")
+    assert fd.main() == 0
+    assert box["calls"] == []
+    assert len(box["sent"]) == 1 and "FLEET_READ_TOKEN" in box["sent"][0][1]
+    assert box["saved"] == []
+
+
+def test_polling_failed_notification_remains_fail_soft(monkeypatch, capsys):
+    box = _polling_scenario(monkeypatch, default_delay=15, error="timeout")
+
+    def failed_notify(text):
+        box["sent"].append((box["now"], text))
+        return False
+
+    monkeypatch.setattr(fd, "notify", failed_notify)
+    assert fd.main() == 0
+    _assert_incomplete_poll(box)
+    assert "skipped/failed" in capsys.readouterr().out
