@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-12",
+ "_last_date": "2026-10-13",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,10 +64,10 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
   "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -83,11 +83,11 @@
  ],
  "fitbit/freshness.yml": [
   "fail",
+  "ok",
+  "ok",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "ok",
-  "ok",
   "fail"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
@@ -156,7 +156,7 @@
  "style-superman/health.yml": [
   "fail",
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
