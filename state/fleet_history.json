@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-14",
+ "_last_date": "2026-10-15",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,8 +64,8 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -85,10 +85,10 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -154,7 +154,7 @@
   "stale"
  ],
  "style-superman/health.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
