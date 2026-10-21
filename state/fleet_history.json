@@ -42,7 +42,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "_fleet": [
   "problem",
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-20",
+ "_last_date": "2026-10-21",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -82,7 +82,7 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -187,15 +187,15 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "voc/daily.yml": [
-  "ok",
   "ok",
   "fail",
   "ok",
   "ok",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ]
 }
