@@ -38,8 +38,8 @@
  "TeaBus-VOC/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-24",
+ "_last_date": "2026-10-25",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -183,8 +183,8 @@
  "th-ops/remind.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -192,8 +192,8 @@
  "voc/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
