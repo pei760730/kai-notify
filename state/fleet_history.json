@@ -37,8 +37,8 @@
  ],
  "TeaBus-VOC/daily.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-25",
+ "_last_date": "2026-10-26",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -88,7 +88,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -182,8 +182,8 @@
  ],
  "th-ops/remind.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -191,8 +191,8 @@
  ],
  "voc/daily.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
