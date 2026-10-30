@@ -31,8 +31,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ],
  "TeaBus-VOC/daily.yml": [
@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-10-29",
+ "_last_date": "2026-10-30",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -67,9 +67,9 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "stale",
   "ok",
+  "stale",
   "stale"
  ],
  "collector/core-bump.yml": [
@@ -84,11 +84,11 @@
  "fitbit/freshness.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -131,8 +131,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ],
  "media-sorter/collector.yml": [
