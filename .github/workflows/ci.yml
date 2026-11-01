@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
       # ruff 的版本釘在 python/pyproject.toml 的 dev extra(唯一來源),不在這裡
@@ -41,7 +41,7 @@ jobs:
         working-directory: python
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"   # also validates the pip-installable path
