@@ -28,8 +28,8 @@
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -53,24 +53,24 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-01",
+ "_last_date": "2026-11-02",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
   "ok",
   "stale",
   "stale",
   "ok",
-  "stale"
+  "stale",
+  "ok"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -85,10 +85,10 @@
   "fail",
   "fail",
   "fail",
+  "ok",
+  "ok",
   "fail",
-  "ok",
-  "ok",
-  "fail"
+  "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
@@ -97,7 +97,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "ig-insights-sync/sync.yml": [
   "off",
@@ -128,8 +128,8 @@
  ],
  "media-sorter/backlog-watch.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
