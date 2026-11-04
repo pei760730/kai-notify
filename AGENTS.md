@@ -23,4 +23,4 @@ python -m pytest -q && python -m ruff check .
 
 ## Codex 通用紀律
 
-分支 `codex/*`;絕不自 merge(merge 一律 Kai 說了算);宣稱完成前先跑驗證看到綠;只動被要求的部分。
+分支 `codex/*`;不自審自合(PR 交 Claude 獨立審;雙審無阻擋+驗證綠即合,不等人工);宣稱完成前先跑驗證看到綠;只動被要求的部分。
