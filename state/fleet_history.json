@@ -27,7 +27,7 @@
   "off"
  ],
  "KaiOS-ContentSystem/ig-sheet-sync.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -53,23 +53,23 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-03",
+ "_last_date": "2026-11-04",
  "benchmark-radar/radar-watchdog.yml": [
-  "ok",
   "ok",
   "ok",
   "fail",
   "ok",
   "ok",
+  "ok",
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
   "stale",
   "ok",
   "stale",
   "ok",
+  "stale",
   "stale"
  ],
  "collector/core-bump.yml": [
@@ -83,10 +83,10 @@
  ],
  "fitbit/freshness.yml": [
   "fail",
-  "fail",
   "ok",
   "ok",
   "fail",
+  "ok",
   "ok",
   "ok"
  ],
@@ -95,7 +95,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail"
  ],
@@ -127,7 +127,7 @@
   "ok"
  ],
  "media-sorter/backlog-watch.yml": [
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
