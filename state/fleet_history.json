@@ -53,11 +53,11 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-04",
+ "_last_date": "2026-11-05",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -65,10 +65,10 @@
  ],
  "collector/collect.yml": [
   "stale",
-  "stale",
   "ok",
   "stale",
   "ok",
+  "stale",
   "stale",
   "stale"
  ],
@@ -82,10 +82,10 @@
   "ok"
  ],
  "fitbit/freshness.yml": [
-  "fail",
   "ok",
   "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
@@ -94,7 +94,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
