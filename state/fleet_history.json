@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-08",
+ "_last_date": "2026-11-09",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,12 +64,12 @@
   "ok"
  ],
  "collector/collect.yml": [
+  "stale",
+  "stale",
+  "stale",
+  "stale",
+  "stale",
   "ok",
-  "stale",
-  "stale",
-  "stale",
-  "stale",
-  "stale",
   "ok"
  ],
  "collector/core-bump.yml": [
@@ -157,7 +157,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -195,7 +195,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "fail"
+  "fail",
+  "ok"
  ]
 }
