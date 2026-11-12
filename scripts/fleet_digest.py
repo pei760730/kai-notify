@@ -25,7 +25,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 # 讓本檔能 import 同 repo 的 kai_notify 核心(和 action_send.py 同款路徑注入)。
 sys.path.insert(
@@ -411,7 +411,7 @@ def _assess(
     concl = run.get("conclusion")  # success/failure/cancelled/None(進行中)
     url = run.get("html_url", "")
     try:
-        ts = datetime.fromisoformat(run.get("created_at", "").replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(run.get("created_at", ""))  # 3.11+ 吃 "Z"
         age = now - ts
         ago = _humanize(age)
     except ValueError:
@@ -476,7 +476,7 @@ def main() -> int:
         print("fleet-digest: no FLEET_READ_TOKEN; sent degraded heartbeat.")
         return 0
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     deadline = time.monotonic() + _POLL_BUDGET
 
     def _stop_polling() -> bool:
