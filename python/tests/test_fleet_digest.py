@@ -10,7 +10,7 @@ import importlib.util
 import io
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -29,7 +29,7 @@ def _load():
 
 
 fd = _load()
-_NOW = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 1, 0, 0, tzinfo=UTC)
 
 # The autouse fixture below stubs fd._workflow_states for every test; grab the
 # real one now so the two tests that exercise it directly aren't testing the stub.
@@ -65,7 +65,7 @@ def _run(conclusion, mins_ago, url="https://gh/run/1"):
 def _recent(conclusion, mins_ago, url="https://gh/run/1"):
     """Like _run but anchored to real now — main() measures age against the
     live clock, so its fixtures must be relative to now, not the fixed _NOW."""
-    created = (datetime.now(timezone.utc) - timedelta(minutes=mins_ago)).strftime(
+    created = (datetime.now(UTC) - timedelta(minutes=mins_ago)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     return {"conclusion": conclusion, "created_at": created, "html_url": url}
