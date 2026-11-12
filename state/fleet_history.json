@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-11",
+ "_last_date": "2026-11-12",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -66,11 +66,11 @@
  "collector/collect.yml": [
   "stale",
   "stale",
-  "stale",
   "ok",
   "ok",
   "stale",
-  "ok"
+  "ok",
+  "stale"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -97,7 +97,7 @@
   "fail",
   "fail",
   "fail",
-  "fail"
+  "ok"
  ],
  "ig-insights-sync/sync.yml": [
   "off",
@@ -154,13 +154,13 @@
   "stale"
  ],
  "style-superman/health.yml": [
-  "ok",
   "fail",
   "fail",
   "fail",
   "fail",
   "fail",
-  "fail"
+  "fail",
+  "ok"
  ],
  "th-customs-scan/scan.yml": [
   "off",
@@ -192,8 +192,8 @@
  "voc/daily.yml": [
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
