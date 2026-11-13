@@ -24,6 +24,8 @@ import pytest
         b'{"ok":1}',
         b'{"ok":[true]}',
         b'{"ok":{"PRIVATE_RESPONSE":true}}',
+        b'{"ok":true,"result":' + b"1" * 5000 + b"}",
+        b"[" * 2000 + b"0" + b"]" * 2000,
     ],
 )
 def test_invalid_200_is_unconfirmed_without_resending(monkeypatch, caplog, body):

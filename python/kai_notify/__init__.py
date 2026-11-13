@@ -120,7 +120,9 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
         # not retry it, because the first request may already have delivered.
         try:
             response = json.loads(body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except (ValueError, RecursionError):
+            # ValueError also covers UTF-8 errors and Python's integer-size
+            # limit; deeply nested JSON can raise RecursionError instead.
             response = None
         if not isinstance(response, dict) or not isinstance(response.get("ok"), bool):
             _log.warning(
