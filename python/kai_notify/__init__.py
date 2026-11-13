@@ -110,16 +110,28 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
     """One attempt. Returns:
     ("ok", bool)     — definitive (True sent, False ok:false); do NOT retry.
     ("retry", wait)  — transient (429/5xx/network); wait is seconds or None.
-    ("fail", None)   — permanent (400/401/403/404); already logged, do NOT retry.
+    ("fail", None)   — permanent HTTP error or unconfirmed acknowledgement;
+                       already logged, do NOT retry.
     """
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read()
-        # A 200 can still carry {"ok": false} — don't report that as sent.
+        # HTTP 200 is not an acknowledgement: Telegram requires a JSON object
+        # with a boolean ok. An invalid reply leaves delivery unconfirmed; do
+        # not retry it, because the first request may already have delivered.
         try:
-            ok = bool(json.loads(body.decode("utf-8")).get("ok"))
-        except Exception:  # noqa: BLE001 - non-JSON 200 is unexpected; trust it
-            ok = True
+            response = json.loads(body.decode("utf-8"))
+        except (ValueError, RecursionError):
+            # ValueError also covers UTF-8 errors and Python's integer-size
+            # limit; deeply nested JSON can raise RecursionError instead.
+            response = None
+        if not isinstance(response, dict) or not isinstance(response.get("ok"), bool):
+            _log.warning(
+                "kai_notify: invalid Telegram acknowledgement; delivery unconfirmed "
+                "(fail-soft, not retrying)"
+            )
+            return ("fail", None)
+        ok = response["ok"]
         if not ok:
             _log.warning("kai_notify: telegram returned ok=false (fail-soft)")
         return ("ok", ok)
@@ -193,7 +205,8 @@ def notify(text: str) -> bool:
     """Push a single line / block of text to Kai's Telegram.
 
     Returns True if Telegram accepted the message, False if it was skipped
-    (no credentials, empty text) or failed (never raises).
+    (no credentials, empty text), failed, or delivery could not be confirmed
+    (never raises). False is not proof that the message was not delivered.
     """
     text = (text or "").strip()
     if not text:

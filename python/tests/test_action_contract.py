@@ -43,6 +43,25 @@ def _load_action_send():
 action_send = _load_action_send()
 
 
+def test_text_action_does_not_claim_sent_for_invalid_acknowledgement(
+    monkeypatch, capsys
+):
+    from unittest.mock import MagicMock
+
+    import kai_notify
+
+    _clear_action_env(monkeypatch)
+    monkeypatch.setenv("KN_TEXT", "fake notification")
+    monkeypatch.setenv("KAI_NOTIFY_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "fake-chat")
+    transport = MagicMock()
+    transport.return_value.__enter__.return_value.read.return_value = b"not JSON"
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", transport)
+    assert action_send.main() == 0
+    assert capsys.readouterr().out.strip() == "kai-notify: skipped/failed (fail-soft)."
+    transport.assert_called_once()
+
+
 def _action_input_keys():
     keys = set()
     in_inputs = False
