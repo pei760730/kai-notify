@@ -166,8 +166,15 @@ def _send(text: str) -> bool:
     if creds is None:
         return False
     token, chat_id = creds
+    try:
+        text = _clip(text)
+    except UnicodeEncodeError:
+        _log.warning(
+            "kai_notify: invalid Unicode in notification text; skipping push (fail-soft)"
+        )
+        return False
     payload = json.dumps(
-        {"chat_id": chat_id, "text": _clip(text), "disable_web_page_preview": True}
+        {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
     ).encode("utf-8")
 
     deadline = time.monotonic() + _RETRY_BUDGET
