@@ -110,7 +110,8 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
     """One attempt. Returns:
     ("ok", bool)     — definitive (True sent, False ok:false); do NOT retry.
     ("retry", wait)  — transient (429/5xx/network); wait is seconds or None.
-    ("fail", None)   — permanent (400/401/403/404); already logged, do NOT retry.
+    ("fail", None)   — permanent HTTP error or unconfirmed acknowledgement;
+                       already logged, do NOT retry.
     """
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -204,7 +205,8 @@ def notify(text: str) -> bool:
     """Push a single line / block of text to Kai's Telegram.
 
     Returns True if Telegram accepted the message, False if it was skipped
-    (no credentials, empty text) or failed (never raises).
+    (no credentials, empty text), failed, or delivery could not be confirmed
+    (never raises). False is not proof that the message was not delivered.
     """
     text = (text or "").strip()
     if not text:

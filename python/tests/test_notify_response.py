@@ -55,6 +55,7 @@ def test_invalid_200_is_unconfirmed_without_resending(monkeypatch, caplog, body)
     )
     assert kai_notify.notify("fake notification") is False
     assert len(calls) == 1
+    assert "invalid Telegram acknowledgement" in caplog.text
     assert "PRIVATE_RESPONSE" not in caplog.text
     assert "fake-token" not in caplog.text
 
