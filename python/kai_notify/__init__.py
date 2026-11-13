@@ -157,7 +157,11 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
         )
         return ("fail", None)
     except Exception as exc:  # noqa: BLE001 - network/timeout: transient, retry
-        _log.warning("kai_notify: send attempt failed (%s); retrying if budget", exc)
+        # Exception text can include the request URL (and therefore bot token).
+        _log.warning(
+            "kai_notify: send attempt failed (%s); retrying if budget",
+            type(exc).__name__,
+        )
         return ("retry", None)
 
 
