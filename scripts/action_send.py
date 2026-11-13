@@ -58,10 +58,12 @@ def main() -> int:
         except ValueError:
             floor = 1.0
         alerted = notify_metric(label, value, floor=floor, unit=unit)
+        # False also covers failed/unconfirmed sends, not just healthy metrics.
+        # Report delivery only; the core owns the metric-health decision.
         print(
-            "kai-notify: metric below floor -> alert sent."
+            "kai-notify: metric alert sent."
             if alerted
-            else "kai-notify: metric ok (silent)."
+            else "kai-notify: no confirmed metric alert (healthy metric or skipped/failed send)."
         )
         return 0
     else:
