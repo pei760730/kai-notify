@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 import os
 
+import pytest
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.normpath(os.path.join(_HERE, "..", ".."))
 _ACTION_YML = os.path.join(_ROOT, "action.yml")
@@ -86,6 +88,75 @@ def test_action_inputs_are_pinned():
     assert actual == EXPECTED_INPUTS, (
         f"action.yml inputs changed; added={sorted(added)}, removed={sorted(removed)}"
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "outcome"),
+    [
+        ("0", "forbidden"),
+        ("N/A", "forbidden"),
+        ("0", "unconfirmed"),
+        ("N/A", "accepted"),
+        ("0", "missing_credentials"),
+        ("5", "healthy"),
+        ("0", "accepted"),
+    ],
+)
+def test_metric_status_reports_delivery_without_inventing_health(
+    monkeypatch, capsys, value, outcome
+):
+    import io
+    import json
+    from unittest.mock import MagicMock, Mock
+
+    import kai_notify
+
+    _clear_action_env(monkeypatch)
+    monkeypatch.setenv("KN_LABEL", "rows")
+    monkeypatch.setenv("KN_VALUE", value)
+    monkeypatch.setenv("KN_FLOOR", "1")
+    monkeypatch.setenv("KAI_NOTIFY_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "fake-chat")
+    if outcome == "missing_credentials":
+        monkeypatch.delenv("KAI_NOTIFY_BOT_TOKEN")
+    requests = []
+
+    def transport(request, timeout=None):
+        if outcome in ("healthy", "missing_credentials"):
+            pytest.fail("this metric must not attempt a send")
+        requests.append(request)
+        if outcome == "forbidden":
+            raise kai_notify.urllib.error.HTTPError(
+                "fake-url",
+                403,
+                "Forbidden",
+                {},
+                io.BytesIO(b'{"description":"Forbidden"}'),
+            )
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b"not JSON" if outcome == "unconfirmed" else b'{"ok":true}'
+        )
+        return response
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", transport)
+    sleep = Mock(side_effect=AssertionError("these cases must not retry"))
+    monkeypatch.setattr(kai_notify.time, "sleep", sleep)
+    assert _load_action_send().main() == 0
+    output = capsys.readouterr().out
+    sleep.assert_not_called()
+    if outcome == "accepted":
+        assert "alert sent." in output
+        if value == "N/A":
+            assert "below floor" not in output
+    elif outcome == "healthy":
+        assert "alert sent." not in output
+    else:
+        assert "metric ok" not in output
+        assert "no confirmed metric alert" in output
+    assert len(requests) == (0 if outcome in ("healthy", "missing_credentials") else 1)
+    if value == "N/A":
+        assert "無法判讀" in json.loads(requests[0].data)["text"]
 
 
 def _clear_action_env(monkeypatch):
