@@ -115,11 +115,20 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read()
-        # A 200 can still carry {"ok": false} — don't report that as sent.
+        # HTTP 200 is not an acknowledgement: Telegram requires a JSON object
+        # with a boolean ok. An invalid reply leaves delivery unconfirmed; do
+        # not retry it, because the first request may already have delivered.
         try:
-            ok = bool(json.loads(body.decode("utf-8")).get("ok"))
-        except Exception:  # noqa: BLE001 - non-JSON 200 is unexpected; trust it
-            ok = True
+            response = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            response = None
+        if not isinstance(response, dict) or not isinstance(response.get("ok"), bool):
+            _log.warning(
+                "kai_notify: invalid Telegram acknowledgement; delivery unconfirmed "
+                "(fail-soft, not retrying)"
+            )
+            return ("fail", None)
+        ok = response["ok"]
         if not ok:
             _log.warning("kai_notify: telegram returned ok=false (fail-soft)")
         return ("ok", ok)

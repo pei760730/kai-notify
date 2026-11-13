@@ -9,7 +9,7 @@ import kai_notify
 
 class _Resp:
     def read(self):
-        return b""
+        return b'{"ok":true,"result":{"message_id":1}}'
 
     def __enter__(self):
         return self
