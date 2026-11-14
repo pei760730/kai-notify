@@ -156,6 +156,9 @@ def _send_once(req: urllib.request.Request, timeout: float) -> tuple[str, object
             description = json.loads(raw.decode("utf-8")).get("description", "")
         except Exception:  # noqa: BLE001
             description = exc.reason or ""
+        # Malformed upstream fields must not reach the hint parser or log objects.
+        if not isinstance(description, str):
+            description = exc.reason if isinstance(exc.reason, str) else ""
         _log.warning(
             "kai_notify: send failed (fail-soft): HTTP %s %s%s",
             exc.code,
