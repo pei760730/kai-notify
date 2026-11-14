@@ -380,3 +380,69 @@ def test_healthy_metric_stays_silent(monkeypatch):
     )  # 高於 floor → 不告警
     assert mod.main() == 0
     assert sent == [], "健康的 metric 必須維持靜默,不可被 empty-input 分支攔截"
+
+
+@pytest.mark.parametrize(
+    "floor",
+    ["NaN", "Infinity", "-Infinity", "1e9999", "-1e9999", "9" * 401],
+    ids=[
+        "nan",
+        "positive-infinity",
+        "negative-infinity",
+        "overflow-positive",
+        "overflow-negative",
+        "overflow-decimal",
+    ],
+)
+@pytest.mark.parametrize(
+    "outcome", ["accepted", "forbidden", "unconfirmed", "missing_credentials"]
+)
+def test_nonfinite_floor_action_reports_uncertainty_and_delivery(
+    monkeypatch, capsys, floor, outcome
+):
+    import io
+    import json
+    from unittest.mock import MagicMock
+
+    import kai_notify
+
+    _clear_action_env(monkeypatch)
+    monkeypatch.setenv("KN_LABEL", "synthetic floor")
+    monkeypatch.setenv("KN_VALUE", "42")
+    monkeypatch.setenv("KN_FLOOR", floor)
+    monkeypatch.setenv("KAI_NOTIFY_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "fake-chat")
+    if outcome == "missing_credentials":
+        monkeypatch.delenv("KAI_NOTIFY_BOT_TOKEN")
+    requests = []
+
+    def transport(request, timeout=None):
+        if outcome == "missing_credentials":
+            pytest.fail("missing credentials must not attempt a send")
+        requests.append(request)
+        if outcome == "forbidden":
+            raise kai_notify.urllib.error.HTTPError(
+                "fake-url",
+                403,
+                "Forbidden",
+                {},
+                io.BytesIO(b'{"description":"Forbidden"}'),
+            )
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b"not JSON" if outcome == "unconfirmed" else b'{"ok":true}'
+        )
+        return response
+
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", transport)
+    assert _load_action_send().main() == 0
+    output = capsys.readouterr().out
+    assert ("metric alert sent." in output) == (outcome == "accepted")
+    if outcome != "accepted":
+        assert "no confirmed metric alert" in output
+    assert len(requests) == (0 if outcome == "missing_credentials" else 1)
+    if requests:
+        message = json.loads(requests[0].data)["text"]
+        assert "synthetic floor" in message
+        assert "門檻無法判讀" in message
+        assert "產品是空的" not in message

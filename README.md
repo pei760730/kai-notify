@@ -113,6 +113,11 @@ Unparseable values, `NaN`, infinities, and values that overflow float conversion
 produce an "unreadable quantity" alert instead of a health judgment. The return
 value still reports delivery: `True` only when that alert was sent, otherwise
 `False` (including missing credentials or failed delivery).
+A `NaN` or infinite `floor` produces an "unreadable threshold" alert instead
+of claiming insufficient output; this includes action floor strings such as
+`"1e9999"` that overflow to infinity. Finite thresholds keep their existing
+comparison, including exact integer floors in Python. If both the value and
+floor are unreadable, the value diagnostic takes precedence.
 The same is available to yml-only workflows via the action:
 
 ```yaml

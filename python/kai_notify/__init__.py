@@ -274,6 +274,7 @@ def notify_metric(label: str, value: object, floor: float = 1, unit: str = "") -
     At or above the floor it stays silent: success is silent here, like
     everything else. Unparseable, non-finite, or float-overflowing values report
     an unreadable quantity instead of claiming a healthy or below-floor result.
+    Non-finite floors report an unreadable threshold, not a health judgment.
     Returns True iff an alert was sent. Never raises.
     """
     label = (label or "").strip() or "(unnamed)"
@@ -291,6 +292,9 @@ def notify_metric(label: str, value: object, floor: float = 1, unit: str = "") -
         return notify(
             f"⚠️ {label} — 回報了無法判讀的產出量{reported},run 可能綠但空轉,去看一下。"
         )
+    # Compare directly: converting floor to float would round large integers.
+    if floor != floor or floor in (math.inf, -math.inf):  # noqa: PLR0124 - NaN is unequal to itself
+        return notify(f"⚠️ {label} — 門檻無法判讀,無法判斷產出是否達標,請檢查門檻設定。")
     if v >= floor:
         return False
     u = f" {unit}" if unit else ""
