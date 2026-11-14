@@ -5,6 +5,27 @@ from __future__ import annotations
 import kai_notify
 import pytest
 
+
+class BrokenRepr(float):
+    def __repr__(self):
+        raise RuntimeError("synthetic repr failure")
+
+
+class NonStringRepr(float):
+    def __repr__(self):
+        return 123
+
+
+class BrokenFormat(str):
+    def __format__(self, spec):
+        raise RuntimeError("synthetic format failure")
+
+
+class BrokenFormatRepr(float):
+    def __repr__(self):
+        return BrokenFormat("non-finite")
+
+
 INVALID_VALUES = [
     pytest.param(float("nan"), id="nan"),
     pytest.param(float("inf"), id="positive-infinity"),
@@ -15,6 +36,10 @@ INVALID_VALUES = [
     pytest.param("1e9999", id="overflow-string"),
     pytest.param(10**400, id="overflow-integer"),
     pytest.param(10**5000, id="overflow-integer-beyond-repr-limit"),
+] + [
+    pytest.param(cls(value), id=f"{cls.__name__}-{value}")
+    for cls in (BrokenRepr, NonStringRepr, BrokenFormatRepr)
+    for value in ("inf", "nan", "-inf")
 ]
 
 
@@ -61,3 +86,19 @@ def test_existing_unparseable_metric_keeps_value_in_alert(monkeypatch):
     )
     assert kai_notify.notify_metric("synthetic", "N/A") is True
     assert "（'N/A'）" in messages[0]
+
+
+@pytest.mark.parametrize("signal", [KeyboardInterrupt, SystemExit])
+def test_invalid_metric_diagnostic_does_not_swallow_control_signals(
+    monkeypatch, signal
+):
+    class InterruptedRepr(float):
+        def __repr__(self):
+            raise signal()
+
+    def no_notification(*args, **kwargs):
+        pytest.fail("interrupted diagnostics must not notify")
+
+    monkeypatch.setattr(kai_notify, "notify", no_notification)
+    with pytest.raises(signal):
+        kai_notify.notify_metric("synthetic", InterruptedRepr("inf"))

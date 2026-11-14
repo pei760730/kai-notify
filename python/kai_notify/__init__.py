@@ -284,13 +284,12 @@ def notify_metric(label: str, value: object, floor: float = 1, unit: str = "") -
     if not math.isfinite(v):
         # Can't tell whether it produced anything -> say so, don't swallow it.
         try:
-            reported = repr(value)
-        except (ValueError, OverflowError):
-            # A huge int can also exceed Python's integer-to-string digit limit.
-            reported = "<unrepresentable value>"
+            reported = f"（{value!r}）"
+        except Exception:  # noqa: BLE001 - diagnostics must also stay fail-soft
+            # Huge ints or custom repr/format methods can fail while rendering.
+            reported = "（<unrepresentable value>）"
         return notify(
-            f"⚠️ {label} — 回報了無法判讀的產出量（{reported}）,"
-            f"run 可能綠但空轉,去看一下。"
+            f"⚠️ {label} — 回報了無法判讀的產出量{reported},run 可能綠但空轉,去看一下。"
         )
     if v >= floor:
         return False
