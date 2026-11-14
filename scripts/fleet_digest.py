@@ -469,11 +469,16 @@ def main() -> int:
     token = (os.environ.get("FLEET_READ_TOKEN") or "").strip()
     if not token:
         # 沒 PAT 就讀不到各 repo;老實說,免得「digest 靜悄悄」被誤當一切正常。
-        notify(
+        sent = notify(
             "🌅 早安 Kai — 我暫時看不到各 repo 的狀態（FLEET_READ_TOKEN 沒設或失效）。"
             "這則至少證明通知本身還活著,但 fleet 健康我這輪報不了。"
         )
-        print("fleet-digest: no FLEET_READ_TOKEN; sent degraded heartbeat.")
+        print(
+            "fleet-digest: no FLEET_READ_TOKEN;",
+            "sent degraded heartbeat."
+            if sent
+            else "degraded heartbeat skipped/failed (fail-soft).",
+        )
         return 0
 
     now = datetime.now(UTC)
@@ -533,12 +538,17 @@ def main() -> int:
     blind = [r for r in reads if r[4] in ("auth", "ratelimit")]
     if len(blind) >= max(3, len(reads) // 2):
         reason = "PAT 可能失效" if any(r[4] == "auth" for r in blind) else "被限流"
-        notify(
+        sent = notify(
             f"🌅 早安 Kai — ⚠️ 這輪我只讀到 {len(reads) - len(blind)}/{len(reads)} 條"
             f"（{reason}),fleet 健康報不準,先別當全綠 —— 去看一下 kai-notify 的 "
             f"FLEET_READ_TOKEN。\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
         )
-        print("fleet-digest: degraded reads; sent honest warning (history untouched).")
+        print(
+            "fleet-digest: degraded reads;",
+            "sent honest warning (history untouched)."
+            if sent
+            else "warning skipped/failed (fail-soft) (history untouched).",
+        )
         return 0  # 不更新歷史,別讓一次 token 中斷洗掉連續紀錄
 
     history = _load_history()

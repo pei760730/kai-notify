@@ -380,6 +380,74 @@ def test_main_degraded_when_no_pat(monkeypatch):
     assert "看不到各 repo" in box["text"]
 
 
+@pytest.mark.parametrize("branch", ["missing_pat", "auth_reads"])
+@pytest.mark.parametrize("outcome", ["accepted", "forbidden", "missing_credentials"])
+def test_degraded_status_reflects_actual_notification_result(
+    monkeypatch, capsys, branch, outcome
+):
+    from unittest.mock import MagicMock, Mock
+
+    import kai_notify
+
+    if branch == "missing_pat":
+        monkeypatch.delenv("FLEET_READ_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("FLEET_READ_TOKEN", "fake-read-token")
+    monkeypatch.setenv("KAI_NOTIFY_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("KAI_NOTIFY_CHAT_ID", "fake-chat")
+    if outcome == "missing_credentials":
+        monkeypatch.delenv("KAI_NOTIFY_BOT_TOKEN")
+    lookups = Mock(return_value=(None, "auth"))
+    save = Mock(side_effect=AssertionError("degraded scans must not update history"))
+    load = Mock(side_effect=AssertionError("degraded scans must not load history"))
+    monkeypatch.setattr(fd, "_latest_run", lookups)
+    monkeypatch.setattr(fd, "_save_history", save)
+    monkeypatch.setattr(fd, "_load_history", load)
+    monkeypatch.setattr(fd, "notify", kai_notify.notify)
+    requests = []
+
+    def transport(request, timeout=None):
+        requests.append(request)
+        if outcome == "forbidden":
+            raise kai_notify.urllib.error.HTTPError(
+                "fake-url",
+                403,
+                "Forbidden",
+                {},
+                io.BytesIO(b'{"description":"Forbidden"}'),
+            )
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        return response
+
+    sleep = Mock(side_effect=AssertionError("these sends must not retry"))
+    monkeypatch.setattr(kai_notify.urllib.request, "urlopen", transport)
+    monkeypatch.setattr(kai_notify.time, "sleep", sleep)
+    assert fd.main() == 0
+    output = capsys.readouterr().out
+    if outcome == "accepted":
+        assert "sent" in output
+        assert "skipped/failed" not in output
+    else:
+        assert "sent degraded heartbeat" not in output
+        assert "sent honest warning" not in output
+        assert "skipped/failed (fail-soft)" in output
+    if branch == "auth_reads":
+        assert "history untouched" in output
+        assert lookups.call_count == len(fd.MONITORED)
+    else:
+        lookups.assert_not_called()
+    assert len(requests) == (0 if outcome == "missing_credentials" else 1)
+    if requests:
+        payload = json.loads(requests[0].data)
+        assert ("看不到各 repo" if branch == "missing_pat" else "只讀到") in payload[
+            "text"
+        ]
+    sleep.assert_not_called()
+    load.assert_not_called()
+    save.assert_not_called()
+
+
 # ── _transitions / _is_flapping / _recovered ─────────────────────────────────
 def test_transitions_counts_health_flips():
     assert fd._transitions(["ok", "ok", "ok"]) == 0
