@@ -109,6 +109,10 @@ notify_metric("voc daily", rows_written, floor=1, unit="篇")
 
 Below `floor` → an immediate "跑綠但產出 0" alert (visible the moment it happens,
 not a day later). At/above the floor → silent, like every other success here.
+Unparseable values, `NaN`, infinities, and values that overflow float conversion
+produce an "unreadable quantity" alert instead of a health judgment. The return
+value still reports delivery: `True` only when that alert was sent, otherwise
+`False` (including missing credentials or failed delivery).
 The same is available to yml-only workflows via the action:
 
 ```yaml

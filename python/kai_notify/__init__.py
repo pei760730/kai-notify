@@ -272,15 +272,24 @@ def notify_metric(label: str, value: object, floor: float = 1, unit: str = "") -
     Below ``floor`` it pushes a loud 'green but empty' alert immediately — so the
     blind spot surfaces the moment it happens, not a day later (and not never).
     At or above the floor it stays silent: success is silent here, like
-    everything else. Returns True iff an alert was sent. Never raises.
+    everything else. Unparseable, non-finite, or float-overflowing values report
+    an unreadable quantity instead of claiming a healthy or below-floor result.
+    Returns True iff an alert was sent. Never raises.
     """
     label = (label or "").strip() or "(unnamed)"
     try:
         v = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        v = math.nan
+    if not math.isfinite(v):
         # Can't tell whether it produced anything -> say so, don't swallow it.
+        try:
+            reported = repr(value)
+        except (ValueError, OverflowError):
+            # A huge int can also exceed Python's integer-to-string digit limit.
+            reported = "<unrepresentable value>"
         return notify(
-            f"⚠️ {label} — 回報了無法判讀的產出量（{value!r}）,"
+            f"⚠️ {label} — 回報了無法判讀的產出量（{reported}）,"
             f"run 可能綠但空轉,去看一下。"
         )
     if v >= floor:
