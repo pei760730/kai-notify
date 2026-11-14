@@ -100,6 +100,13 @@ def test_action_inputs_are_pinned():
         ("0", "missing_credentials"),
         ("5", "healthy"),
         ("0", "accepted"),
+        ("NaN", "accepted"),
+        ("Infinity", "accepted"),
+        ("-Infinity", "accepted"),
+        ("1e9999", "accepted"),
+        ("Infinity", "forbidden"),
+        ("NaN", "unconfirmed"),
+        ("1e9999", "missing_credentials"),
     ],
 )
 def test_metric_status_reports_delivery_without_inventing_health(
@@ -155,7 +162,7 @@ def test_metric_status_reports_delivery_without_inventing_health(
         assert "metric ok" not in output
         assert "no confirmed metric alert" in output
     assert len(requests) == (0 if outcome in ("healthy", "missing_credentials") else 1)
-    if value == "N/A":
+    if value in ("N/A", "NaN", "Infinity", "-Infinity", "1e9999") and requests:
         assert "無法判讀" in json.loads(requests[0].data)["text"]
 
 
