@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import random
 import time
@@ -92,16 +93,22 @@ def _credentials() -> tuple[str, str] | None:
 
 def _retry_after(exc: urllib.error.HTTPError, raw: bytes) -> float | None:
     """Seconds Telegram asks us to wait on a 429, from the JSON body's
-    parameters.retry_after (preferred) or the Retry-After header. None if absent."""
+    parameters.retry_after (preferred) or the Retry-After header. Negative or
+    non-finite values are invalid; fall back to the header, then None."""
     try:
         params = json.loads(raw.decode("utf-8")).get("parameters") or {}
         if params.get("retry_after") is not None:
-            return float(params["retry_after"])
+            delay = float(params["retry_after"])
+            if math.isfinite(delay) and delay >= 0:
+                return delay
     except Exception:  # noqa: BLE001, S110 - malformed body falls back to header
         pass
     try:
         header = exc.headers.get("Retry-After")
-        return float(header) if header is not None else None
+        if header is None:
+            return None
+        delay = float(header)
+        return delay if math.isfinite(delay) and delay >= 0 else None
     except Exception:  # noqa: BLE001
         return None
 
