@@ -412,7 +412,7 @@ def _assess(
             "detail": "讀不到它的狀態（權限或 workflow 名字對不上？）",
             "url": "",
         }
-    concl = run.get("conclusion")  # success/failure/cancelled/None(進行中)
+    concl = run.get("conclusion")  # success/failure/cancelled/timed_out/None(進行中)
     url = run.get("html_url", "")
     try:
         ts = datetime.fromisoformat(run.get("created_at", ""))  # 3.11+ 吃 "Z"
@@ -443,6 +443,15 @@ def _assess(
             "url": url,
         }
 
+    # GitHub 的明確 timed_out 結論也代表這輪沒做完,不能落入 fresh → ok。
+    if concl == "timed_out":
+        return {
+            "kind": "fail",
+            "name": name,
+            "detail": f"{ago}前那次執行逾時，這輪的工作沒做完",
+            "url": url,
+        }
+
     stale = age is not None and age > _STALE_AFTER.get(cadence, timedelta(hours=26))
     if stale:
         return {
@@ -452,7 +461,7 @@ def _assess(
             "url": url,
         }
 
-    # success / 進行中 當「沒事」——它有在動就好。cancelled 已在上面攔掉。
+    # success / 進行中 當「沒事」——它有在動就好。cancelled / timed_out 已在上面攔掉。
     return {"kind": "ok", "name": name, "detail": f"{ago}前跑過", "url": url}
 
 

@@ -986,3 +986,71 @@ def test_other_cadence_thresholds_are_unchanged():
     assert fd._STALE_AFTER["weekly"] == timedelta(days=8)
     assert fd._STALE_AFTER["monthly"] == timedelta(days=32)
     assert fd._STALE_AFTER["bi-monthly"] == timedelta(days=63)
+
+
+@pytest.mark.parametrize("cadence", list(fd._STALE_AFTER))
+@pytest.mark.parametrize("minutes", [1, 100 * 24 * 60])
+def test_assess_timed_out_is_failure_even_when_stale(cadence, minutes):
+    result = fd._assess("bot", cadence, _run("timed_out", minutes), _NOW)
+    assert result["kind"] == "fail"
+    assert result["name"] == "bot"
+    assert result["url"] == "https://gh/run/1"
+    assert "逾時" in result["detail"]
+    assert "人為" not in result["detail"]
+    assert result["detail"] not in [
+        fd._assess("bot", cadence, _run(c, minutes), _NOW)["detail"]
+        for c in ("failure", "cancelled")
+    ]
+
+
+def test_assess_timed_out_with_unreadable_age():
+    run = _run("timed_out", 1)
+    run["created_at"] = "invalid"
+    result = fd._assess("bot", "daily", run, _NOW)
+    assert result["kind"] == "fail"
+    assert result["detail"].startswith("?前")
+
+
+@pytest.mark.parametrize(
+    "kwargs,kind,detail",
+    [
+        ({"archived": True}, "off", "封存"),
+        ({"exists": False}, "off", "不在 repo"),
+        ({"state": "disabled_manually"}, "off", "被停用中"),
+        ({"state": "disabled_inactivity"}, "fail", "自動停用"),
+    ],
+)
+def test_assess_timed_out_preserves_workflow_precedence(kwargs, kind, detail):
+    result = fd._assess("bot", "daily", _run("timed_out", 1), _NOW, **kwargs)
+    assert result["kind"] == kind
+    assert detail in result["detail"]
+    assert result["url"] == ""
+
+
+@pytest.mark.parametrize(
+    "conclusion", ["success", None, "neutral", "skipped", "action_required", "stale"]
+)
+@pytest.mark.parametrize("cadence", list(fd._STALE_AFTER))
+def test_other_conclusions_keep_freshness_boundary(conclusion, cadence):
+    minutes = int(fd._STALE_AFTER[cadence].total_seconds() / 60)
+    for age, expected in ((minutes, "ok"), (minutes + 1, "stale")):
+        result = fd._assess("bot", cadence, _run(conclusion, age), _NOW)
+        assert result["kind"] == expected
+
+
+def test_main_timed_out_never_claims_all_green(monkeypatch):
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(
+        fd,
+        "_latest_run",
+        lambda r, w, t: (
+            _recent("timed_out" if r == "collector" else "success", 1),
+            None,
+        ),
+    )
+    box = _capture_notify(monkeypatch)
+    assert fd.main() == 0
+    assert "一切正常" not in box["text"]
+    assert "要你看一下" in box["text"]
+    assert "逾時" in box["text"]
+    assert "https://gh/run/1" in box["text"]
