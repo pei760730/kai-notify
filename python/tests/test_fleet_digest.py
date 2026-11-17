@@ -948,3 +948,41 @@ def test_polling_failed_notification_remains_fail_soft(monkeypatch, capsys):
     assert fd.main() == 0
     _assert_incomplete_poll(box)
     assert "skipped/failed" in capsys.readouterr().out
+
+
+def test_collector_cadence_matches_heartbeat_alert_not_requested_cron():
+    cadence = next(
+        c
+        for repo, wf, _, c in fd.MONITORED
+        if (repo, wf) == ("collector", "collect.yml")
+    )
+    assert cadence == "collector-drain"
+    assert fd._STALE_AFTER[cadence] == timedelta(hours=18)
+    for minutes in (4 * 60, 10 * 60, 18 * 60):
+        assert (
+            fd._assess("collector", cadence, _run("success", minutes), _NOW)["kind"]
+            == "ok"
+        )
+    assert (
+        fd._assess("collector", cadence, _run("success", 18 * 60 + 1), _NOW)["kind"]
+        == "stale"
+    )
+
+
+@pytest.mark.parametrize("conclusion", ["failure", "cancelled"])
+@pytest.mark.parametrize("minutes", [1, 4 * 60, 19 * 60])
+def test_collector_failures_are_not_hidden_by_longer_freshness(conclusion, minutes):
+    assert (
+        fd._assess("collector", "collector-drain", _run(conclusion, minutes), _NOW)[
+            "kind"
+        ]
+        == "fail"
+    )
+
+
+def test_other_cadence_thresholds_are_unchanged():
+    assert fd._STALE_AFTER["frequent"] == timedelta(hours=2)
+    assert fd._STALE_AFTER["daily"] == timedelta(hours=26)
+    assert fd._STALE_AFTER["weekly"] == timedelta(days=8)
+    assert fd._STALE_AFTER["monthly"] == timedelta(days=32)
+    assert fd._STALE_AFTER["bi-monthly"] == timedelta(days=63)
