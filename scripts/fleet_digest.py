@@ -51,7 +51,7 @@ _TIMEOUT = 15
 _POLL_BUDGET = 480.0
 
 # 監測名單:(repo, workflow 檔, 顯示名, 節奏)。節奏決定「多久沒跑算 stale」。
-# frequent(每 5 分收集 bot)只看最近一次結論、不判 stale(隨時都在跑)。
+# frequent 仍有 2h 新鮮度守門;collector 的高頻 cron 實際配給另用專屬節奏。
 MONITORED = [
     ("benchmark-radar", "radar-watchdog.yml", "radar watchdog", "daily"),
     # 2026-09-07 移除 ig-insights-sync 的兩筆(sync.yml / token-refresh.yml):
@@ -86,7 +86,7 @@ MONITORED = [
     # #9 三併一(2026-07-15):short-video-bot 改名 collector,clip-collector/feed-collector
     # 併入後 archive。三條收集線=同一條 collect.yml 的三個 matrix job(fail-fast:false,
     # 任一 job 紅→run 紅),一筆監控即全覆蓋;舊三筆會對 archived repo 報假 stale。
-    ("collector", "collect.yml", "collector collect(voc/tbvoc/of)", "frequent"),
+    ("collector", "collect.yml", "collector collect(voc/tbvoc/of)", "collector-drain"),
     # 2026-07-26 補：本 repo 原本只監控 media-sorter 的 ytdlp 週檢，沒監控真正的
     # 下載佇列 collector.yml。結果 2026-07-02～07-26 那條管線因 OAuth token 失效
     # 靜默死 24 天，而看門狗「全綠」——它從一開始就沒被指派去看那裡。這是本次
@@ -125,6 +125,9 @@ MONITORED = [
 # 各節奏的「該多久內要有一次 run」上限;超過視為 stale(cron 沒排到/壞了)。
 _STALE_AFTER = {
     "frequent": timedelta(hours=2),
+    # collector/collect.yml 已記錄 p99 9.9h、最長 11.2h 的實際排程間隔。
+    # 對齊 heartbeat.yml 的 18h 人工告警線,不把正常配給延遲報成故障。
+    "collector-drain": timedelta(hours=18),
     "daily": timedelta(hours=26),
     "weekly": timedelta(days=8),
     "monthly": timedelta(days=32),
@@ -307,6 +310,7 @@ def _repo_archived(repo: str, token: str) -> bool | None:
 
 _CADENCE_HUMAN = {
     "frequent": "本來就該一直在跑",
+    "collector-drain": "批次收集;6h 看守補觸發,18h 人工告警線",
     "daily": "平常每天要跑一次",
     "weekly": "平常每週跑一次",
     "monthly": "平常每月跑一次",
