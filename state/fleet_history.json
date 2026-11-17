@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-16",
+ "_last_date": "2026-11-17",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,13 +64,13 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "stale",
   "ok",
   "stale",
   "stale",
   "ok",
   "stale",
-  "ok"
+  "ok",
+  "stale"
  ],
  "collector/core-bump.yml": [
   "ok",
@@ -86,13 +86,13 @@
   "ok",
   "ok",
   "ok",
-  "ok",
   "fail",
+  "ok",
   "ok"
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -155,12 +155,12 @@
  ],
  "style-superman/health.yml": [
   "fail",
-  "fail",
   "ok",
   "ok",
   "ok",
   "ok",
-  "ok"
+  "ok",
+  "fail"
  ],
  "th-customs-scan/scan.yml": [
   "off",
@@ -187,7 +187,7 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ],
  "voc/daily.yml": [
   "ok",
@@ -196,6 +196,6 @@
   "ok",
   "ok",
   "ok",
-  "ok"
+  "fail"
  ]
 }
