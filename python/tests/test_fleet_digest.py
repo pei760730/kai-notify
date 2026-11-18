@@ -1027,9 +1027,7 @@ def test_assess_timed_out_preserves_workflow_precedence(kwargs, kind, detail):
     assert result["url"] == ""
 
 
-@pytest.mark.parametrize(
-    "conclusion", ["success", None, "neutral", "skipped", "action_required", "stale"]
-)
+@pytest.mark.parametrize("conclusion", ["success", None, "neutral", "skipped", "stale"])
 @pytest.mark.parametrize("cadence", list(fd._STALE_AFTER))
 def test_other_conclusions_keep_freshness_boundary(conclusion, cadence):
     minutes = int(fd._STALE_AFTER[cadence].total_seconds() / 60)
@@ -1054,3 +1052,24 @@ def test_main_timed_out_never_claims_all_green(monkeypatch):
     assert "要你看一下" in box["text"]
     assert "逾時" in box["text"]
     assert "https://gh/run/1" in box["text"]
+
+
+@pytest.mark.parametrize("minutes", [1, 48 * 60])
+def test_main_action_required_reports_the_run_and_records_a_problem(
+    monkeypatch, minutes
+):
+    repo, wf, name = "example", "daily.yml", "每日檢查"
+    run = {**_recent("action_required", minutes), "status": "completed"}
+    monkeypatch.setenv("FLEET_READ_TOKEN", "x")
+    monkeypatch.setattr(fd, "MONITORED", [(repo, wf, name, "daily")])
+    monkeypatch.setattr(fd, "_latest_run", lambda *args: (run, None))
+    box = _capture_notify(monkeypatch)
+
+    assert fd.main() == 0
+    assert "一切正常" not in box["text"]
+    assert "1 個要你看一下" in box["text"]
+    assert name in box["text"] and "需要人工處理" in box["text"]
+    assert run["html_url"] in box["text"]
+    history = fd._load_history()
+    assert history[f"{repo}/{wf}"] == ["fail"]
+    assert history["_fleet"] == ["problem"]
