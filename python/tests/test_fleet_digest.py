@@ -34,7 +34,7 @@ _NOW = datetime(2026, 7, 1, 0, 0, tzinfo=UTC)
 # The autouse fixture below stubs fd._workflow_states for every test; grab the
 # real one now so the two tests that exercise it directly aren't testing the stub.
 _REAL_WORKFLOW_STATES = fd._workflow_states
-_REAL_REPO_ARCHIVED = fd._repo_archived
+_REAL_REPO_INFO = fd._repo_info
 
 
 @pytest.fixture(autouse=True)
@@ -54,12 +54,28 @@ def _no_network_workflow_states(monkeypatch):
     清單了,而且裡面一支都沒有」= 每條監控的檔案都不存在,整份 digest 會被判成 off。
     None 才是「沒讀到」,判讀退回 run-based —— 也就是這些測試原本要驗的路徑。"""
     monkeypatch.setattr(fd, "_workflow_states", lambda repo, token: None)
-    monkeypatch.setattr(fd, "_repo_archived", lambda repo, token: None)
+    monkeypatch.setattr(fd, "_repo_info", lambda repo, token: (None, "main", None))
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setattr(
+        fd.urllib.request,
+        "urlopen",
+        lambda *a, **k: pytest.fail("unexpected network in fleet digest test"),
+    )
 
 
 def _run(conclusion, mins_ago, url="https://gh/run/1"):
     created = (_NOW - timedelta(minutes=mins_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"conclusion": conclusion, "created_at": created, "html_url": url}
+    return {
+        "conclusion": conclusion,
+        "created_at": created,
+        "html_url": url,
+        "status": "in_progress" if conclusion is None else "completed",
+        "run_attempt": 1,
+        "id": 1,
+        "event": "schedule",
+        "head_branch": "main",
+    }
 
 
 def _recent(conclusion, mins_ago, url="https://gh/run/1"):
@@ -68,7 +84,16 @@ def _recent(conclusion, mins_ago, url="https://gh/run/1"):
     created = (datetime.now(UTC) - timedelta(minutes=mins_ago)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
-    return {"conclusion": conclusion, "created_at": created, "html_url": url}
+    return {
+        "conclusion": conclusion,
+        "created_at": created,
+        "html_url": url,
+        "status": "in_progress" if conclusion is None else "completed",
+        "run_attempt": 1,
+        "id": 1,
+        "event": "schedule",
+        "head_branch": "main",
+    }
 
 
 # ── _humanize ────────────────────────────────────────────────────────────────
@@ -254,12 +279,12 @@ def _capture_notify(monkeypatch):
 def test_main_all_green_is_one_reassuring_line(monkeypatch):
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
     monkeypatch.setattr(
-        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+        fd, "_latest_run", lambda r, w, t, *_scope: (_recent("success", 10), None)
     )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     text = box["text"]
-    assert "一切正常" in text
+    assert "自然排程紀錄未見異常" in text
     assert "👇" not in text  # no problem list when all green
     assert "沒來" in text  # heartbeat footer present
 
@@ -267,7 +292,7 @@ def test_main_all_green_is_one_reassuring_line(monkeypatch):
 def test_main_lists_only_problems(monkeypatch):
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
 
-    def fake_latest(repo, wf, token):
+    def fake_latest(repo, wf, token, *_scope):
         # Make exactly one monitored entry fail; the rest succeed (fresh).
         if repo == "th-ops" and wf == "remind.yml":
             return (_recent("failure", 10, url="https://gh/run/BAD"), None)
@@ -281,17 +306,17 @@ def test_main_lists_only_problems(monkeypatch):
     assert "th-ops remind" in text
     assert "https://gh/run/BAD" in text
     # the other N-1 are summarized, not listed
-    assert f"其他 {len(fd.MONITORED) - 1} 個都正常" in text
+    assert f"其他 {len(fd.MONITORED) - 1} 個自然排程未見異常" in text
 
 
 def test_main_degraded_reads_do_not_fake_all_green(monkeypatch):
     # (a) honesty: if most reads fail on auth, say so — never imply health.
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
-    monkeypatch.setattr(fd, "_latest_run", lambda r, w, t: (None, "auth"))
+    monkeypatch.setattr(fd, "_latest_run", lambda r, w, t, *_scope: (None, "auth"))
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     text = box["text"]
-    assert "一切正常" not in text
+    assert "自然排程紀錄未見異常" not in text
     assert "報不準" in text and "FLEET_READ_TOKEN" in text
     # history must NOT be written on a degraded run
     assert not os.path.exists(fd._STATE_FILE)
@@ -301,7 +326,7 @@ def test_main_degrades_at_exactly_half_blind_reads(monkeypatch):
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
     calls = {"n": 0}
 
-    def half_blind(repo, wf, token):
+    def half_blind(repo, wf, token, *_scope):
         calls["n"] += 1
         if calls["n"] <= len(fd.MONITORED) // 2:
             return (None, "auth")
@@ -327,7 +352,7 @@ def test_main_streak_suffix_from_history(monkeypatch):
         fd, "_load_history", lambda: {"th-ops/remind.yml": ["fail", "fail"]}
     )
 
-    def fake_latest(repo, wf, token):
+    def fake_latest(repo, wf, token, *_scope):
         if repo == "th-ops" and wf == "remind.yml":
             return (_recent("failure", 10), None)
         return (_recent("success", 10), None)
@@ -348,11 +373,11 @@ def test_main_green_streak_shown_when_long(monkeypatch):
         fd, "_load_history", lambda: {"_fleet": ["green", "green", "green"]}
     )
     monkeypatch.setattr(
-        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+        fd, "_latest_run", lambda r, w, t, *_scope: (_recent("success", 10), None)
     )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
-    assert "連續 4 天全綠" in box["text"]  # 3 prior + today
+    assert "連續 4 天未見排程警訊" in box["text"]  # 3 prior + today
 
 
 def test_main_history_is_idempotent_within_a_day(monkeypatch):
@@ -360,7 +385,7 @@ def test_main_history_is_idempotent_within_a_day(monkeypatch):
     # must NOT append another sample — else streak/flapping memory inflates.
     monkeypatch.setenv("FLEET_READ_TOKEN", "x")
     monkeypatch.setattr(
-        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+        fd, "_latest_run", lambda r, w, t, *_scope: (_recent("success", 10), None)
     )
     _capture_notify(monkeypatch)
     key = f"{fd.MONITORED[0][0]}/{fd.MONITORED[0][1]}"
@@ -485,14 +510,16 @@ def test_main_reports_recovery_even_when_all_green(monkeypatch):
         fd, "_load_history", lambda: {"th-ops/remind.yml": ["fail", "fail"]}
     )
     monkeypatch.setattr(
-        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+        fd, "_latest_run", lambda r, w, t, *_scope: (_recent("success", 10), None)
     )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
     text = box["text"]
     assert "恢復了" in text
     assert "th-ops remind" in text
-    assert "一切正常" not in text  # a recovery is news, not a plain all-green
+    assert (
+        "自然排程紀錄未見異常" not in text
+    )  # a recovery is news, not a plain all-green
 
 
 def test_main_flags_flapping_cron_even_when_ok_today(monkeypatch):
@@ -505,7 +532,7 @@ def test_main_flags_flapping_cron_even_when_ok_today(monkeypatch):
         lambda: {"benchmark-radar/radar-watchdog.yml": ["fail", "ok", "fail", "ok"]},
     )
     monkeypatch.setattr(
-        fd, "_latest_run", lambda r, w, t: (_recent("success", 10), None)
+        fd, "_latest_run", lambda r, w, t, *_scope: (_recent("success", 10), None)
     )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
@@ -522,7 +549,7 @@ def test_main_tags_flapping_on_a_current_problem(monkeypatch):
         lambda: {"th-ops/remind.yml": ["fail", "ok", "fail", "ok"]},
     )
 
-    def fake_latest(repo, wf, token):
+    def fake_latest(repo, wf, token, *_scope):
         if repo == "th-ops" and wf == "remind.yml":
             return (_recent("failure", 10), None)
         return (_recent("success", 10), None)
@@ -647,7 +674,7 @@ def _all_success_except_disabled(monkeypatch, disabled_repo, disabled_wf, state)
     monkeypatch.setattr(
         fd,
         "_latest_run",
-        lambda r, w, t: (
+        lambda r, w, t, *_scope: (
             (_recent("cancelled", 10), None)
             if (r, w) == (disabled_repo, disabled_wf)
             else (_recent("success", 10), None)
@@ -660,7 +687,7 @@ def _all_success_except_disabled(monkeypatch, disabled_repo, disabled_wf, state)
         out = {wf: "active" for r, wf, _n, _c in fd.MONITORED if r == repo}
         if repo == disabled_repo:
             out[disabled_wf] = state
-        return out
+        return fd._WorkflowListing(out, True)
 
     monkeypatch.setattr(
         fd,
@@ -681,8 +708,8 @@ def test_main_disabled_workflow_is_shown_but_not_counted_as_a_problem(monkeypatc
     assert "要你看一下" not in text
     # 但也不准消失 —— 每天照列一行,owner 才不會忘了有這條 cron 被關著
     assert "th-customs 月掃" in text and "🔕" in text
-    # 而且不可以被算進「都正常」的頭數
-    assert f"其餘 {len(fd.MONITORED) - 1} 個都正常" in text
+    # 停用項不列入「首輪回報成功」的概括。
+    assert "個自然排程首輪回報成功" not in text
 
 
 def test_main_inactivity_disabled_still_demands_attention(monkeypatch):
@@ -730,7 +757,9 @@ def test_workflow_states_maps_basename_to_state(monkeypatch):
 
     monkeypatch.setattr(fd.urllib.request, "urlopen", fake_urlopen)
     out = _REAL_WORKFLOW_STATES("th-customs-scan", "tok")
-    assert out == {"scan.yml": "disabled_manually", "ci.yml": "active"}
+    assert out == fd._WorkflowListing(
+        {"scan.yml": "disabled_manually", "ci.yml": "active"}, False
+    )
     assert "th-customs-scan" in captured["url"]
 
 
@@ -763,16 +792,16 @@ def test_save_history_is_fail_soft(monkeypatch):
 def test_latest_run_reads_workflow_runs_and_uses_first(monkeypatch):
     payload = {
         "workflow_runs": [
-            {"id": "newest"},
-            {"id": "older"},
+            {"id": 2, "event": "schedule", "head_branch": "main", "run_attempt": 1},
+            {"id": 1, "event": "schedule", "head_branch": "main", "run_attempt": 1},
         ]
     }
     monkeypatch.setattr(
         fd.urllib.request, "urlopen", lambda *a, **k: _FakeResp(payload)
     )
-    run, err = fd._latest_run("repo", "ci.yml", "tok")
+    run, err = fd._latest_run("repo", "ci.yml", "tok", "schedule", "main")
     assert err is None
-    assert run == {"id": "newest"}
+    assert run == payload["workflow_runs"][0]
 
 
 def _raise_http(code, headers=None):
@@ -783,7 +812,7 @@ def _raise_http(code, headers=None):
 
 def test_latest_run_classifies_403_auth(monkeypatch):
     monkeypatch.setattr(fd.urllib.request, "urlopen", lambda *a, **k: _raise_http(403))
-    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "auth")
+    assert fd._latest_run("repo", "ci.yml", "tok", "schedule", "main") == (None, "auth")
 
 
 def test_latest_run_classifies_403_rate_limit(monkeypatch):
@@ -792,12 +821,18 @@ def test_latest_run_classifies_403_rate_limit(monkeypatch):
         "urlopen",
         lambda *a, **k: _raise_http(403, {"x-ratelimit-remaining": "0"}),
     )
-    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "ratelimit")
+    assert fd._latest_run("repo", "ci.yml", "tok", "schedule", "main") == (
+        None,
+        "ratelimit",
+    )
 
 
 def test_latest_run_classifies_429_rate_limit(monkeypatch):
     monkeypatch.setattr(fd.urllib.request, "urlopen", lambda *a, **k: _raise_http(429))
-    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "ratelimit")
+    assert fd._latest_run("repo", "ci.yml", "tok", "schedule", "main") == (
+        None,
+        "ratelimit",
+    )
 
 
 def test_latest_run_is_fail_soft_on_plain_oserror(monkeypatch):
@@ -806,7 +841,10 @@ def test_latest_run_is_fail_soft_on_plain_oserror(monkeypatch):
         "urlopen",
         lambda *a, **k: (_ for _ in ()).throw(OSError("socket closed")),
     )
-    assert fd._latest_run("repo", "ci.yml", "tok") == (None, "network")
+    assert fd._latest_run("repo", "ci.yml", "tok", "schedule", "main") == (
+        None,
+        "network",
+    )
 
 
 def test_monitored_covers_av_health():
@@ -830,7 +868,7 @@ def _polling_scenario(monkeypatch, *, delays=None, default_delay=0, error=None):
         fd, "time", SimpleNamespace(monotonic=lambda: box["now"]), raising=False
     )
     monkeypatch.setattr(fd, "_workflow_states", _REAL_WORKFLOW_STATES)
-    monkeypatch.setattr(fd, "_repo_archived", _REAL_REPO_ARCHIVED)
+    monkeypatch.setattr(fd, "_repo_info", _REAL_REPO_INFO)
     monkeypatch.setattr(fd, "_load_history", lambda: prior)
     monkeypatch.setattr(fd, "_save_history", lambda hist: box["saved"].append(hist))
     monkeypatch.setattr(
@@ -841,7 +879,9 @@ def _polling_scenario(monkeypatch, *, delays=None, default_delay=0, error=None):
         assert timeout == 15  # The repair must keep the existing per-request timeout.
         box["calls"].append(req.full_url)
         box["now"] += (delays or {}).get(len(box["calls"]), default_delay)
-        if error == "timeout":
+        # With no default-branch metadata we correctly skip run requests.
+        # Model successful (slow) metadata plus timing-out required run reads.
+        if error == "timeout" and "/runs?" in req.full_url:
             raise TimeoutError("synthetic timeout")
         if error == "auth":
             _raise_http(401)
@@ -858,7 +898,7 @@ def _polling_scenario(monkeypatch, *, delays=None, default_delay=0, error=None):
                     ]
                 }
             )
-        return _FakeResp({"archived": False})
+        return _FakeResp({"archived": False, "default_branch": "main"})
 
     monkeypatch.setattr(fd.urllib.request, "urlopen", fake_urlopen)
     return box
@@ -869,7 +909,7 @@ def _assert_incomplete_poll(box):
     at, text = box["sent"][0]
     assert at < 600, f"heartbeat arrived at {at}s, after the job deadline"
     assert "掃描未完成" in text and "報不準" in text
-    assert "一切正常" not in text and "PAT 可能失效" not in text
+    assert "自然排程紀錄未見異常" not in text and "PAT 可能失效" not in text
     assert box["saved"] == []
     assert box["history"] == {"_last_date": "2000-01-01", "_fleet": ["green"]}
 
@@ -1041,14 +1081,14 @@ def test_main_timed_out_never_claims_all_green(monkeypatch):
     monkeypatch.setattr(
         fd,
         "_latest_run",
-        lambda r, w, t: (
+        lambda r, w, t, *_scope: (
             _recent("timed_out" if r == "collector" else "success", 1),
             None,
         ),
     )
     box = _capture_notify(monkeypatch)
     assert fd.main() == 0
-    assert "一切正常" not in box["text"]
+    assert "自然排程紀錄未見異常" not in box["text"]
     assert "要你看一下" in box["text"]
     assert "逾時" in box["text"]
     assert "https://gh/run/1" in box["text"]
@@ -1066,10 +1106,437 @@ def test_main_action_required_reports_the_run_and_records_a_problem(
     box = _capture_notify(monkeypatch)
 
     assert fd.main() == 0
-    assert "一切正常" not in box["text"]
+    assert "自然排程紀錄未見異常" not in box["text"]
     assert "1 個要你看一下" in box["text"]
     assert name in box["text"] and "需要人工處理" in box["text"]
     assert run["html_url"] in box["text"]
     history = fd._load_history()
     assert history[f"{repo}/{wf}"] == ["fail"]
     assert history["_fleet"] == ["problem"]
+
+
+# Natural evidence is filtered by GitHub and verified again at the local boundary.
+_DEFAULT = "release/stable"
+_SCHEDULE = "schedule"
+_DISPATCH = "workflow_dispatch"
+
+
+def _evidence(
+    conclusion,
+    minutes=1,
+    *,
+    event=_SCHEDULE,
+    branch=_DEFAULT,
+    attempt=1,
+    run_id=42,
+    status=None,
+):
+    run = _recent(conclusion, minutes, url=f"https://gh/run/{run_id}")
+    run.update(
+        id=run_id,
+        run_attempt=attempt,
+        event=event,
+        head_branch=branch,
+        status=status or run["status"],
+    )
+    return run
+
+
+def _evidence_scenario(
+    monkeypatch,
+    *,
+    scheduled=(),
+    dispatch=(),
+    originals=None,
+    branch=_DEFAULT,
+    archived=False,
+    state="active",
+    schedule_cost=0,
+    workflow_payload=None,
+):
+    box = {"calls": [], "messages": [], "clock": 0.0}
+    monkeypatch.setenv("FLEET_READ_TOKEN", "synthetic-token")
+    monkeypatch.setattr(fd, "MONITORED", [("sample", "work.yml", "樣本", "daily")])
+    monkeypatch.setattr(fd, "_workflow_states", _REAL_WORKFLOW_STATES)
+    monkeypatch.setattr(fd, "_repo_info", _REAL_REPO_INFO)
+    monkeypatch.setattr(fd, "time", SimpleNamespace(monotonic=lambda: box["clock"]))
+    monkeypatch.setattr(
+        fd, "notify", lambda message: box["messages"].append(message) or True
+    )
+
+    def fake_get(req, timeout):
+        assert timeout == fd._TIMEOUT
+        parsed = fd.urllib.parse.urlsplit(req.full_url)
+        assert parsed.hostname == "api.github.com"
+        if parsed.path.endswith("/actions/workflows"):
+            box["calls"].append("workflow-list")
+            payload = workflow_payload
+            if payload is None:
+                payload = {
+                    "total_count": 1,
+                    "workflows": [
+                        {"path": ".github/workflows/work.yml", "state": state}
+                    ],
+                }
+            return _FakeResp(payload)
+        if parsed.path.endswith("/repos/pei760730/sample"):
+            box["calls"].append("repo-info")
+            return _FakeResp({"default_branch": branch, "archived": archived})
+        if "/attempts/" in parsed.path:
+            box["calls"].append(parsed.path.rsplit("/actions/", 1)[1])
+            result = (originals or {}).get(parsed.path)
+            if result is None:
+                _raise_http(404)
+            return _FakeResp(result)
+        assert parsed.path.endswith("/actions/workflows/work.yml/runs")
+        params = fd.urllib.parse.parse_qs(parsed.query)
+        assert params["branch"] == [branch]
+        assert params["per_page"] == ["1"]
+        [event] = params["event"]
+        box["calls"].append(event)
+        if event == _SCHEDULE:
+            box["clock"] += schedule_cost
+            return _FakeResp({"workflow_runs": list(scheduled)})
+        assert event == _DISPATCH
+        return _FakeResp({"workflow_runs": list(dispatch)})
+
+    monkeypatch.setattr(fd.urllib.request, "urlopen", fake_get)
+    return box
+
+
+@pytest.mark.parametrize(
+    "schedule_result, age, kind",
+    [
+        ("success", 27 * 60, "stale"),
+        ("failure", 20, "fail"),
+        ("cancelled", 20, "fail"),
+        ("timed_out", 20, "fail"),
+        ("action_required", 20, "fail"),
+    ],
+)
+def test_fresh_default_branch_dispatch_never_cures_the_natural_schedule(
+    monkeypatch,
+    schedule_result,
+    age,
+    kind,
+):
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[_evidence(schedule_result, age)],
+        dispatch=[_evidence("success", 1, event=_DISPATCH, run_id=43)],
+    )
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert "1 個要你看一下" in message
+    assert "預設分支非排程補跑回報成功（未驗證產出）" in message
+    assert "https://gh/run/42" in message and "https://gh/run/43" in message
+    assert fd._load_history()["sample/work.yml"] == [kind]
+    assert fd._load_history()["_fleet"] == ["problem"]
+    assert box["calls"] == ["workflow-list", "repo-info", _SCHEDULE, _DISPATCH]
+
+
+@pytest.mark.parametrize(
+    "wrong",
+    [
+        {"head_branch": "topic"},
+        {"event": _DISPATCH},
+        {"id": True},
+        {"run_attempt": None},
+    ],
+)
+def test_inconsistent_schedule_metadata_cannot_turn_green(monkeypatch, wrong):
+    bad = {**_evidence("success"), **wrong}
+    box = _evidence_scenario(monkeypatch, scheduled=[bad])
+    assert fd.main() == 0
+    assert "無法核對目前預設分支的自然排程" in box["messages"][0]
+    assert fd._load_history()["sample/work.yml"] == ["unknown"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        _evidence("success", 1, event=_DISPATCH, branch="topic", run_id=43),
+        _evidence("success", 1, event="push", run_id=43),
+        _evidence("success", 29 * 60, event=_DISPATCH, run_id=43),
+        _evidence("success", 27 * 60, event=_DISPATCH, run_id=43),
+    ],
+)
+def test_unrelated_or_not_later_dispatch_is_not_supplementary_evidence(
+    monkeypatch, extra
+):
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[_evidence("success", 27 * 60)],
+        dispatch=[extra],
+    )
+    assert fd.main() == 0
+    assert "1 個要你看一下" in box["messages"][0]
+    assert "預設分支非排程補跑" not in box["messages"][0]
+    assert fd._load_history()["sample/work.yml"] == ["stale"]
+
+
+def test_dispatch_without_any_natural_run_is_not_good_schedule_evidence(monkeypatch):
+    box = _evidence_scenario(
+        monkeypatch,
+        dispatch=[_evidence("success", 1, event=_DISPATCH, run_id=43)],
+    )
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert "查不到目前預設分支的自然排程紀錄" in message
+    assert "回報成功（未驗證產出）" in message
+    assert fd._load_history()["sample/work.yml"] == ["unknown"]
+
+
+_ATTEMPT_PATH = "/repos/pei760730/sample/actions/runs/42/attempts/1"
+
+
+def test_successful_same_id_rerun_does_not_hide_first_attempt_failure(monkeypatch):
+    latest = _evidence("success", 20, attempt=2)
+    original = {**latest, "run_attempt": 1, "conclusion": "failure"}
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[latest],
+        originals={_ATTEMPT_PATH: original},
+    )
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert "自然排程：" in message and "跑失敗" in message
+    assert "同次排程第 2 次重跑回報成功（未驗證產出）" in message
+    assert fd._load_history()["sample/work.yml"] == ["fail"]
+    assert box["calls"] == [
+        "workflow-list",
+        "repo-info",
+        _SCHEDULE,
+        "runs/42/attempts/1",
+        _DISPATCH,
+    ]
+
+
+@pytest.mark.parametrize(
+    "invalid_original",
+    [
+        None,
+        {"id": 43},
+        {"run_attempt": 2},
+        {"event": _DISPATCH},
+        {"head_branch": "topic"},
+        {"id": True},
+    ],
+)
+def test_unavailable_or_mismatched_first_attempt_keeps_rerun_success_auxiliary(
+    monkeypatch,
+    invalid_original,
+):
+    latest = _evidence("success", 20, attempt=2)
+    original = (
+        None
+        if invalid_original is None
+        else {
+            **latest,
+            "run_attempt": 1,
+            **invalid_original,
+        }
+    )
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[latest],
+        originals={_ATTEMPT_PATH: original},
+    )
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert "首輪結果未能核對" in message
+    assert "同次排程第 2 次重跑回報成功（未驗證產出）" in message
+    assert fd._load_history()["sample/work.yml"] == ["unknown"]
+
+
+@pytest.mark.parametrize(
+    "run, extra_detail, kind",
+    [
+        (_evidence("success", 1), "自然排程首輪回報成功", "ok"),
+        (_evidence(None, 1, status="queued"), "仍未有完成結果", "pending"),
+        (_evidence("skipped", 1), "無法確認成功或進行中", "unknown"),
+        (
+            _evidence("success", 1, status="in_progress"),
+            "無法確認成功或進行中",
+            "unknown",
+        ),
+        (
+            {**_evidence("success", 1), "created_at": None},
+            "自然排程時間無法確認",
+            "unknown",
+        ),
+        ({**_evidence(None, 1), "status": []}, "無法確認成功或進行中", "unknown"),
+    ],
+)
+def test_run_metadata_is_not_work_output_proof(monkeypatch, run, extra_detail, kind):
+    box = _evidence_scenario(monkeypatch, scheduled=[run])
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert extra_detail in message
+    assert "未核對實際工作產出或下游通知" in message
+    assert fd._load_history()["sample/work.yml"] == [kind]
+
+
+@pytest.mark.parametrize(
+    "kwargs, kind",
+    [
+        ({"branch": None}, "unknown"),
+        ({"archived": True}, "off"),
+        ({"state": "disabled_manually"}, "off"),
+        ({"state": "disabled_inactivity"}, "fail"),
+    ],
+)
+def test_no_run_query_when_branch_unknown_or_workflow_off(monkeypatch, kwargs, kind):
+    box = _evidence_scenario(monkeypatch, **kwargs)
+    assert fd.main() == 0
+    assert box["calls"] == ["workflow-list", "repo-info"]
+    assert fd._load_history()["sample/work.yml"] == [kind]
+
+
+def test_optional_evidence_cannot_abort_finished_natural_scan(monkeypatch):
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[_evidence("success", 20, attempt=2)],
+        schedule_cost=466,
+    )
+    assert fd.main() == 0
+    (message,) = box["messages"]
+    assert "首輪結果未能核對" in message
+    assert "同次排程第 2 次重跑回報成功" in message
+    assert "掃描未完成" not in message
+    assert box["calls"] == ["workflow-list", "repo-info", _SCHEDULE]
+    assert fd._load_history()["sample/work.yml"] == ["unknown"]
+
+
+def test_manual_digest_cannot_claim_the_same_taipei_history_slot(monkeypatch):
+    box = _evidence_scenario(monkeypatch, scheduled=[_evidence("success")])
+    monkeypatch.setenv("GITHUB_EVENT_NAME", _DISPATCH)
+    assert fd.main() == 0
+    assert len(box["messages"]) == 1
+    assert fd._load_history() == {}
+    monkeypatch.setenv("GITHUB_EVENT_NAME", _SCHEDULE)
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")  # UI rerun retains event=schedule.
+    assert fd.main() == 0
+    assert fd._load_history() == {}
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    assert fd.main() == 0
+    assert len(box["messages"]) == 3
+    first = fd._load_history()
+    assert first["sample/work.yml"] == ["ok"]
+    assert fd.main() == 0
+    assert fd._load_history() == first
+
+
+def _state_item(filename, state="active"):
+    return {"path": f".github/workflows/{filename}", "state": state}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "total_count": 101,
+            "workflows": [_state_item(f"other-{i}.yml") for i in range(100)],
+        },
+        {
+            "total_count": 2,
+            "workflows": [_state_item("other.yml"), {"path": "malformed"}],
+        },
+        {"total_count": True, "workflows": [_state_item("other.yml")]},
+        {"workflows": [_state_item("other.yml")]},
+        {"total_count": 0, "workflows": [_state_item("other.yml")]},
+        {"total_count": 1, "workflows": "malformed"},
+    ],
+)
+def test_incomplete_workflow_information_never_proves_absence(monkeypatch, payload):
+    box = _evidence_scenario(
+        monkeypatch,
+        workflow_payload=payload,
+        scheduled=[_evidence("failure")],
+    )
+    assert fd.main() == 0
+    assert box["calls"] == ["workflow-list", "repo-info", _SCHEDULE, _DISPATCH]
+    (message,) = box["messages"]
+    assert "跑失敗" in message
+    assert "不存在" not in message and "不在 repo" not in message
+    assert fd._load_history()["sample/work.yml"] == ["fail"]
+
+
+def test_incomplete_listing_still_knows_positive_disabled_state(monkeypatch):
+    box = _evidence_scenario(
+        monkeypatch,
+        workflow_payload={
+            "total_count": 101,
+            "workflows": [
+                _state_item("work.yml", "disabled_manually"),
+                *[_state_item(f"other-{i}.yml") for i in range(99)],
+            ],
+        },
+    )
+    assert fd.main() == 0
+    assert box["calls"] == ["workflow-list", "repo-info"]
+    assert "被停用中" in box["messages"][0]
+    assert fd._load_history()["sample/work.yml"] == ["off"]
+
+
+def test_complete_listing_can_prove_workflow_was_removed(monkeypatch):
+    box = _evidence_scenario(
+        monkeypatch,
+        workflow_payload={"total_count": 0, "workflows": []},
+    )
+    assert fd.main() == 0
+    assert box["calls"] == ["workflow-list", "repo-info"]
+    assert "不在 repo" in box["messages"][0]
+    assert fd._load_history()["sample/work.yml"] == ["off"]
+
+
+def test_fail_pending_success_retains_real_recovery_and_never_reports_pending_green(
+    monkeypatch,
+):
+    date = datetime(2026, 11, 20, 12, tzinfo=UTC)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return date if tz is None else date.astimezone(tz)
+
+    monkeypatch.setattr(fd, "datetime", Clock)
+    scheduled = []
+    box = _evidence_scenario(monkeypatch, scheduled=scheduled)
+    for conclusion in ("failure", None, "success"):
+        scheduled[:] = [
+            {
+                **_evidence(conclusion),
+                "created_at": (date - timedelta(minutes=1)).isoformat(),
+            },
+        ]
+        assert fd.main() == 0
+        date += timedelta(days=1)
+    failed, waiting, recovered = box["messages"]
+    assert "要你看一下" in failed
+    assert "仍未有完成結果" in waiting
+    assert "今天恢復" not in waiting
+    assert "未見異常" not in waiting and "回報成功" not in waiting
+    assert "今天恢復" in recovered
+    history = fd._load_history()
+    assert history["sample/work.yml"] == ["fail", "pending", "ok"]
+    assert history["_fleet"] == ["problem", "pending", "green"]
+    assert fd._transitions(["fail", "pending", "ok"]) == 1
+
+
+def test_pending_breaks_a_duration_claim_but_not_prior_confirmed_failure():
+    assert fd._streak_suffix(["fail", "pending"], "fail") == "(上次確認也是這樣)"
+    assert fd._streak_suffix(["pending"], "fail") == ""
+    assert fd._streak_suffix(["fail", "fail"], "fail") == "(連 3 天)"
+
+
+def test_pending_past_its_existing_freshness_threshold_is_stale(monkeypatch):
+    box = _evidence_scenario(
+        monkeypatch,
+        scheduled=[_evidence(None, 27 * 60, status="queued")],
+    )
+    assert fd.main() == 0
+    assert "要你看一下" in box["messages"][0]
+    assert "未見異常" not in box["messages"][0]
+    assert fd._load_history()["sample/work.yml"] == ["stale"]
+    assert fd._load_history()["_fleet"] == ["problem"]
