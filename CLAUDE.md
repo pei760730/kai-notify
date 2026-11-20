@@ -96,6 +96,8 @@
     且那 1 個是當天第一次出現的真訊號;🔕 th-customs 月掃照列,其他 15 個正常。
   - ⚠ 未動 fail-soft、未改 action inputs、未加 out-of-band 通道。
 
+- **自然排程與補跑不混算（2026-11-20，Digest O）**：GitHub 最新 run 可以是不同事件或分支；Collector 的 heartbeat 補觸發是 `workflow_dispatch`，也可能正常執行，但不能證明自然排程有準時。摘要依 repo 目前預設分支的 `schedule` 首輪和原有門檻記健康史；同 run ID 的重跑不覆蓋其首輪，有重跑才查 attempt 1，無從確認則保留 unknown。較晚且仍新鮮的預設分支補跑可附註，不改自然排程結論。所有附加讀取在原 scan budget 內、不可擠掉各條主查詢；沒有比較後續產出、通知或工作內容。只有自然 digest 的首輪占當天 Taipei 歷史格，手動執行或按重跑都不占。尚未完結是 pending，不算健康或故障；下個確認成功仍會回看 pending 前的失敗。workflow 清單只有確認完整才能證明刪除；不翻頁，保留看到的開關、缺席照查自然 run。既有 Actions 的共用 cancel-in-progress 仍可能讓手動執行取消自然 digest；此修只保護歷史寫入，不改排程互斥。未新增欄位、排程、憑證或通知通道。
+
 ## Lessons(觸發 → 教訓;理由 / 證據 / 失效條件)
 
 - **觸發:準備在本 repo 動手 → 先 `git fetch origin` + `gh pr list`,確認沒有第二條

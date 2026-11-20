@@ -5,8 +5,8 @@
 監視者」的盲區。這支每天固定發一則摘要:
 
   - 有訊息 = 通知管線活著(heartbeat);哪天沒收到 = 管線死了,自己去查。
-  - 內容 = 各 report cron 最近一次跑的結論,把原本每天 9 則「· success」噪音
-    收斂成一則有用摘要,失敗仍由各 cron 即時(if: failure())響、不靠這裡。
+  - 內容 = 目前預設分支各 cron 的自然排程首輪結果。重跑或非排程補跑是補充，
+    不會蓋掉自然狀態；GitHub 執行結果也不證明真的有產出或下游通知。
 
 設計原則(對齊 kai_notify):
 - fail-soft:讀不到某 repo 的 run 就標「?」,不中斷整份摘要,永不 raise。
@@ -24,8 +24,10 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import UTC, datetime, timedelta, timezone
+from typing import NamedTuple
 
 # 讓本檔能 import 同 repo 的 kai_notify 核心(和 action_send.py 同款路徑注入)。
 sys.path.insert(
@@ -34,13 +36,16 @@ sys.path.insert(
 from kai_notify import notify
 
 OWNER = "pei760730"
-_API = (
-    "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs?per_page=1"
+_API = "https://api.github.com/repos/{owner}/{repo}/actions/workflows/{wf}/runs"
+_API_ATTEMPT = (
+    "https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/attempts/1"
 )
 # 一次列一個 repo 的所有 workflow(拿 state 欄),比每條各問一次省呼叫 —— 監測名單
 # 裡好幾個 repo 有多條 cron。
+_WORKFLOW_PAGE_SIZE = 100
 _API_WORKFLOWS = (
-    "https://api.github.com/repos/{owner}/{repo}/actions/workflows?per_page=100"
+    "https://api.github.com/repos/{owner}/{repo}/actions/workflows"
+    f"?per_page={_WORKFLOW_PAGE_SIZE}"
 )
 _API_REPO = "https://api.github.com/repos/{owner}/{repo}"
 _TIMEOUT = 15
@@ -170,6 +175,11 @@ def _streak_suffix(prior: list, today_kind: str) -> str:
     『(今天第一次)』/空,讓 Kai 一眼分辨『慢性病 vs 新問題』。"""
     if not prior:
         return ""
+    if prior[-1] == "pending":
+        previous = _before_pending(prior)
+        if previous == today_kind:
+            return "(上次確認也是這樣)"
+        return ""
     if prior[-1] != today_kind:
         return "(今天第一次)"
     n = 1
@@ -182,13 +192,13 @@ def _streak_suffix(prior: list, today_kind: str) -> str:
 
 
 # 判讀趨勢(反覆 / 連 N 天)時要忽略的 kind:它們都不是「這條在健康與壞掉之間擺盪」
-# 的證據 —— unknown 是我讀不到,off 是它根本沒在跑。
-_NEUTRAL_KINDS = frozenset({"unknown", "off"})
+# 的證據 —— unknown 是我讀不到,off 是它根本沒在跑,pending 是結果尚未確認。
+_NEUTRAL_KINDS = frozenset({"unknown", "off", "pending"})
 
 
 def _transitions(kinds: list) -> int:
     """Count healthy<->not-healthy flips across a kind sequence (oldest..newest).
-    'unknown' (couldn't read) and 'off' (deliberately disabled) are neutral —
+    'unknown', 'off' and 'pending' are neutral —
     neither starts nor breaks a flip run, so a spell of unreadable days, or a
     stretch where the workflow was switched off, doesn't masquerade as
     instability."""
@@ -214,20 +224,21 @@ def _is_flapping(prior: list, today_kind: str) -> bool:
     return len(window) >= 4 and _transitions(window) >= 3
 
 
+def _before_pending(prior: list) -> str | None:
+    return next((kind for kind in reversed(prior) if kind != "pending"), None)
+
+
 def _recovered(prior: list, today_kind: str) -> bool:
-    """True when today is healthy but yesterday it was actually broken
-    (fail/stale) — a recovery worth one line. 'unknown -> ok' is just 'readable
-    again', not a recovery, so it doesn't count."""
-    return today_kind == "ok" and bool(prior) and prior[-1] in ("fail", "stale")
+    """A pending sample is not recovery; look past it once success is confirmed.
+
+    Unknown or switched-off history still does not imply a confirmed recovery.
+    """
+    return today_kind == "ok" and _before_pending(prior) in ("fail", "stale")
 
 
-def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None]:
-    """回傳 (最近一次 run 或 None, 錯誤種類 或 None)。
-    err: None=讀到了; 'auth'=PAT 失效(401/403); 'ratelimit'=被限流;
-    'http'/'network'=其他讀取失敗。分辨這個,digest 才不會把『我根本讀不到』
-    誤當『這條沒跑』而假裝全綠。"""
+def _read_json(url: str, token: str) -> tuple[dict | None, str | None]:
     req = urllib.request.Request(
-        _API.format(owner=OWNER, repo=repo, wf=wf),
+        url,
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
@@ -237,75 +248,125 @@ def _latest_run(repo: str, wf: str, token: str) -> tuple[dict | None, str | None
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        runs = data.get("workflow_runs") or []
-        return (runs[0] if runs else None, None)
+        return (data, None) if isinstance(data, dict) else (None, "invalid")
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
-            # GitHub 用 403 + x-ratelimit-remaining:0 表示限流,和純授權失敗分開。
-            if exc.headers.get("x-ratelimit-remaining") == "0":
+            if exc.headers and exc.headers.get("x-ratelimit-remaining") == "0":
                 return (None, "ratelimit")
             return (None, "auth")
         if exc.code == 429:
             return (None, "ratelimit")
         return (None, "http")
-    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return (None, "network")
 
 
-def _workflow_states(repo: str, token: str) -> dict | None:
-    """{workflow 檔名: state} —— state 是 GitHub 對這條 workflow 本身的開關狀態
-    (`active` / `disabled_manually` / `disabled_inactivity`),跟「最近一次 run 的
-    結論」是兩回事。
+def _positive_int(value: object) -> bool:
+    return type(value) is int and value > 0
 
-    **讀不到回 None,不是空 dict**(2026-09-07 改):這份清單同時是「這支 workflow
-    還在不在 repo 裡」的唯一依據,而「我沒讀到」與「我讀到了、裡面沒有它」是相反
-    的兩件事。回空 dict 會讓一次網路失敗把每一條監控都判成「檔案不見了」——
-    看門狗最不能犯的錯就是把自己的失明報成全世界的死亡。fail-soft 不變:回 None
-    時判讀原樣退回 run-based,絕不讓整份摘要死掉。"""
-    req = urllib.request.Request(
-        _API_WORKFLOWS.format(owner=OWNER, repo=repo),
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
+
+def _matches_run(run: object, event: str, branch: str) -> bool:
+    return (
+        isinstance(run, dict)
+        and run.get("event") == event
+        and run.get("head_branch") == branch
+        and _positive_int(run.get("id"))
+        and _positive_int(run.get("run_attempt"))
     )
-    try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, OSError, json.JSONDecodeError):
+
+
+def _latest_run(
+    repo: str, wf: str, token: str, event: str, branch: str
+) -> tuple[dict | None, str | None]:
+    """Fetch only the newest run for an explicit event and current default branch."""
+    query = urllib.parse.urlencode({"per_page": 1, "event": event, "branch": branch})
+    url = _API.format(owner=OWNER, repo=repo, wf=wf)
+    data, err = _read_json(f"{url}?{query}", token)
+    if err is not None or data is None:
+        return (None, err)
+    runs = data.get("workflow_runs")
+    if not isinstance(runs, list):
+        return (None, "invalid")
+    if not runs:
+        return (None, None)
+    run = runs[0]
+    return (run, None) if _matches_run(run, event, branch) else (None, "invalid")
+
+
+def _first_attempt(repo: str, run: dict, token: str, branch: str) -> dict | None:
+    run_id = run["id"]
+    url = _API_ATTEMPT.format(owner=OWNER, repo=repo, run_id=run_id)
+    first, _ = _read_json(url, token)
+    if (
+        first is not None
+        and _matches_run(first, "schedule", branch)
+        and first["id"] == run_id
+        and first["run_attempt"] == 1
+    ):
+        return first
+    return None
+
+
+class _WorkflowListing(NamedTuple):
+    states: dict[str, str]
+    complete: bool
+
+    def observation(self, name: str) -> tuple[bool | None, str | None]:
+        if name in self.states:
+            return True, self.states[name]
+        return (False if self.complete else None), None
+
+
+def _workflow_states(repo: str, token: str) -> _WorkflowListing | None:
+    """Keep known states; only a complete, verified page proves absence.
+
+    Keep one bounded request. A truncated/malformed list is not evidence that
+    a missing workflow was deleted; let its default-branch run lookup decide.
+    """
+    data, _ = _read_json(_API_WORKFLOWS.format(owner=OWNER, repo=repo), token)
+    if data is None or not isinstance(data.get("workflows"), list):
         return None
-    out = {}
-    for wf in data.get("workflows") or []:
-        path = wf.get("path") or ""
-        state = wf.get("state")
-        if path and state:
-            out[path.rsplit("/", 1)[-1]] = state
-    return out
-
-
-def _repo_archived(repo: str, token: str) -> bool | None:
-    """這個 repo 是不是已封存(archived)。讀不到回 None。
-
-    archived repo 是唯讀的,**GitHub 會停止派送它的排程,而且不會把 workflow 的
-    state 改成 disabled_*** —— 實測 2026-09-07:ig-insights-sync 已 archived,
-    但 token-refresh.yml 的 state 仍是 `active`。所以既有的 disabled_* 判讀接不住
-    這一類,那條 cron 會靜靜地走進 stale 門檻,然後每天早上喊一次狼來了。"""
-    req = urllib.request.Request(
-        _API_REPO.format(owner=OWNER, repo=repo),
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
+    items = data["workflows"]
+    states: dict[str, str] = {}
+    duplicates = set()
+    for wf in items:
+        if not isinstance(wf, dict):
+            continue
+        path, state = wf.get("path"), wf.get("state")
+        if not isinstance(path, str) or not isinstance(state, str) or not state:
+            continue
+        prefix = ".github/workflows/"
+        if not path.startswith(prefix):
+            continue
+        name = path[len(prefix) :]
+        if not name or "/" in name:
+            continue
+        if name in states:
+            states.pop(name)
+            duplicates.add(name)
+        elif name not in duplicates:
+            states[name] = state
+    count = data.get("total_count")
+    complete = (
+        type(count) is int
+        and count == len(items) == len(states)
+        and count <= _WORKFLOW_PAGE_SIZE
     )
-    try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, OSError, json.JSONDecodeError):
-        return None
+    return _WorkflowListing(states, complete)
+
+
+def _repo_info(repo: str, token: str) -> tuple[bool | None, str | None, str | None]:
+    """Get archive status and current default branch with the same metadata read."""
+    data, err = _read_json(_API_REPO.format(owner=OWNER, repo=repo), token)
+    if data is None:
+        return (None, None, err)
     archived = data.get("archived")
-    return archived if isinstance(archived, bool) else None
+    branch = data.get("default_branch")
+    return (
+        archived if isinstance(archived, bool) else None,
+        branch if isinstance(branch, str) and branch.strip() else None,
+        err,
+    )
 
 
 _CADENCE_HUMAN = {
@@ -413,13 +474,9 @@ def _assess(
             "url": "",
         }
     concl = run.get("conclusion")  # success/failure/cancelled/timed_out/None(進行中)
-    url = run.get("html_url", "")
-    try:
-        ts = datetime.fromisoformat(run.get("created_at", ""))  # 3.11+ 吃 "Z"
-        age = now - ts
-        ago = _humanize(age)
-    except ValueError:
-        age, ago = None, "?"
+    url = _run_link(run)
+    age = _run_age(run, now)
+    ago = _humanize(age) if age is not None else "?"
 
     if concl == "failure":
         return {
@@ -473,6 +530,91 @@ def _assess(
     return {"kind": "ok", "name": name, "detail": f"{ago}前跑過", "url": url}
 
 
+def _run_time(run: dict, field: str = "created_at") -> datetime | None:
+    try:
+        ts = datetime.fromisoformat(run.get(field, ""))  # Python 3.11+ accepts Z
+    except (TypeError, ValueError):
+        return None
+    return ts if ts.tzinfo is not None else None
+
+
+def _run_age(run: dict, now: datetime, field: str = "created_at") -> timedelta | None:
+    ts = _run_time(run, field)
+    return now - ts if ts is not None and ts <= now else None
+
+
+_BUSY = frozenset({"queued", "in_progress", "waiting", "requested", "pending"})
+_BAD = frozenset({"failure", "cancelled", "timed_out", "action_required"})
+
+
+def _run_link(run: dict) -> str:
+    value = run.get("html_url")
+    return value if isinstance(value, str) else ""
+
+
+def _busy_run(run: dict) -> bool:
+    status = run.get("status")
+    return run.get("conclusion") is None and isinstance(status, str) and status in _BUSY
+
+
+def _clean_success(run: dict) -> bool:
+    return run.get("status") == "completed" and run.get("conclusion") == "success"
+
+
+def _scheduled_assessment(
+    a: dict, initial: dict | None, err: str | None, now: datetime, cadence: str
+) -> None:
+    """Translate only the natural attempt for history; do not assert work output."""
+    if a["kind"] == "off" or initial is None and a["kind"] == "fail":
+        return
+    if initial is None:
+        if err == "first-attempt":
+            a["detail"] = "有自然排程重跑，但首輪結果未能核對"
+        elif err:
+            a["detail"] = "無法核對目前預設分支的自然排程"
+        else:
+            a["detail"] = "查不到目前預設分支的自然排程紀錄，不能確認有跑"
+        return
+    age = _run_age(initial, now)
+    if a["kind"] != "ok":
+        a["detail"] = f"自然排程：{a['detail']}"
+        if a["kind"] == "fail" and age is not None and age > _STALE_AFTER[cadence]:
+            a["detail"] += "；也已超過應到的判斷窗"
+        return
+    if age is None:
+        a.update(kind="unknown", detail="自然排程時間無法確認")
+    elif _clean_success(initial):
+        a["detail"] = "自然排程首輪回報成功"
+    elif _busy_run(initial):
+        # A timely run is not a failure, but it is not a successful outcome.
+        a.update(kind="pending", detail="自然排程已建立，仍未有完成結果")
+    else:
+        a.update(kind="unknown", detail="自然排程有紀錄，但無法確認成功或進行中")
+
+
+def _extra_run_detail(run: dict, label: str) -> str:
+    if _clean_success(run):
+        return f"{label}回報成功（未驗證產出）"
+    conclusion = run.get("conclusion")
+    if isinstance(conclusion, str) and conclusion in _BAD:
+        return f"{label}未成功"
+    if _busy_run(run):
+        return f"{label}已建立，結果未定"
+    return f"{label}結果未能確認"
+
+
+def _recent_dispatch(
+    dispatch: dict, scheduled: dict | None, cadence: str, now: datetime
+) -> bool:
+    age = _run_age(dispatch, now)
+    if age is None or age > _STALE_AFTER[cadence]:
+        return False
+    if scheduled is None:
+        return True
+    first, later = _run_time(scheduled), _run_time(dispatch)
+    return first is not None and later is not None and later > first
+
+
 def _humanize(delta: timedelta) -> str:
     m = int(delta.total_seconds() // 60)
     if m < 60:
@@ -502,12 +644,14 @@ def main() -> int:
         )
         return 0
 
-    now = datetime.now(UTC)
     deadline = time.monotonic() + _POLL_BUDGET
+
+    def _can_poll() -> bool:
+        return deadline - time.monotonic() >= _TIMEOUT
 
     def _stop_polling() -> bool:
         # Reserve a full request timeout before starting another serial lookup.
-        if deadline - time.monotonic() >= _TIMEOUT:
+        if _can_poll():
             return False
         sent = notify(
             "🌅 早安 Kai — ⚠️ 這輪掃描未完成（讀取耗時超出預算），"
@@ -520,39 +664,38 @@ def main() -> int:
         )
         return True
 
-    # 每個 repo 只問一次 workflow 清單(拿開關狀態),同 repo 的多條 cron 共用。
-    # 每個 repo 只問一次 workflow 清單(開關狀態 + 這支還在不在)與封存狀態,
-    # 同 repo 的多條 cron 共用。兩者都可能是 None = 沒讀到,要跟「讀到了但沒有」分開。
-    states: dict[str, dict | None] = {}
-    archived: dict[str, bool | None] = {}
+    # One workflow list and one repo metadata call per repo, as before.
+    states = {}
+    info = {}
     for repo in dict.fromkeys(r for r, _wf, _n, _c in MONITORED):
         if _stop_polling():
             return 0
         states[repo] = _workflow_states(repo, token)
         if _stop_polling():
             return 0
-        archived[repo] = _repo_archived(repo, token)
+        info[repo] = _repo_info(repo, token)
 
-    reads = []  # (key, name, cadence, run, err, state, exists, archived)
+    reads = []
     for repo, wf, name, cadence in MONITORED:
-        if _stop_polling():
-            return 0
-        run, err = _latest_run(repo, wf, token)
-        repo_states = states.get(repo)
-        # exists: None=沒讀到清單(判讀退回 run-based); True/False=讀到了的事實。
-        exists = None if repo_states is None else (wf in repo_states)
-        state = repo_states.get(wf) if repo_states else None
+        repo_states = states[repo]
+        exists, state = (
+            (None, None) if repo_states is None else repo_states.observation(wf)
+        )
+        archived, branch, metadata_error = info[repo]
+        if (
+            archived is True
+            or exists is False
+            or state in ("disabled_manually", "disabled_inactivity")
+        ):
+            run, err = None, None
+        elif branch is None:
+            run, err = None, metadata_error or "branch"
+        else:
+            if _stop_polling():
+                return 0
+            run, err = _latest_run(repo, wf, token, "schedule", branch)
         reads.append(
-            (
-                f"{repo}/{wf}",
-                name,
-                cadence,
-                run,
-                err,
-                state,
-                exists,
-                archived.get(repo),
-            )
+            (repo, wf, name, cadence, err, run, state, exists, archived, branch)
         )
 
     # (a) 誠實:一大片讀取因 PAT/限流失敗 = 我根本沒法驗健康,絕不能假裝全綠。
@@ -574,17 +717,64 @@ def main() -> int:
 
     history = _load_history()
     assessed = []
-    for key, name, cadence, run, _err, state, exists, is_archived in reads:
-        a = _assess(name, cadence, run, now, state, exists=exists, archived=is_archived)
-        a["key"] = key
-        # 用「今天以前」的歷史(還沒 append 今天)判讀趨勢。
+    # Gather the mandatory natural lists first; optional evidence never crowds
+    # them out. Give first-attempt evidence priority over separate dispatches.
+    originals = []
+    for repo, wf, name, cadence, err, latest, state, exists, archived, branch in reads:
+        initial = latest
+        rerun = latest is not None and latest["run_attempt"] > 1
+        if rerun:
+            initial = (
+                _first_attempt(repo, latest, token, branch) if _can_poll() else None
+            )
+            if initial is None:
+                err = "first-attempt"
+        originals.append((initial, err, rerun))
+
+    for read, original in zip(reads, originals, strict=True):
+        repo, wf, name, cadence, _, latest, state, exists, archived, branch = read
+        initial, err, rerun = original
+        now = datetime.now(UTC)
+        a = _assess(
+            name, cadence, initial, now, state, exists=exists, archived=archived
+        )
+        _scheduled_assessment(a, initial, err, now, cadence)
+        extras = []
+        if rerun and (a["kind"] != "ok" or not _clean_success(latest)):
+            attempt = latest["run_attempt"]
+            extras.append(
+                (_extra_run_detail(latest, f"同次排程第 {attempt} 次重跑"), "")
+            )
+        if (
+            a["kind"] in ("fail", "stale", "unknown")
+            and archived is not True
+            and exists is not False
+            and state not in ("disabled_manually", "disabled_inactivity")
+            and err not in ("auth", "ratelimit")
+            and branch is not None
+            and _can_poll()
+        ):
+            dispatch, _ = _latest_run(repo, wf, token, "workflow_dispatch", branch)
+            if dispatch is not None and _recent_dispatch(
+                dispatch, latest, cadence, datetime.now(UTC)
+            ):
+                extras.append(
+                    (
+                        _extra_run_detail(dispatch, "預設分支非排程補跑"),
+                        _run_link(dispatch),
+                    )
+                )
+        key = f"{repo}/{wf}"
+        a.update(key=key, extras=extras)
         prior = history.get(key, [])
         a["recovered"] = _recovered(prior, a["kind"])
         a["flapping"] = _is_flapping(prior, a["kind"])
         assessed.append(a)
+    now = datetime.now(UTC)
     # 「被停用」不是出事,不進「要你看一下」的計數 —— 但也絕不消失:它在下面的
     # 「另外」區塊每天照列一行。看門狗可以不喊狼,不可以假裝那條 cron 不存在。
-    problems = [a for a in assessed if a["kind"] not in ("ok", "off")]
+    problems = [a for a in assessed if a["kind"] not in ("ok", "off", "pending")]
+    pending = [a for a in assessed if a["kind"] == "pending"]
     switched_off = [a for a in assessed if a["kind"] == "off"]
 
     # 就算現在是綠的,這兩件也值得單獨講一行(否則會被「其他都正常」吞掉):
@@ -606,18 +796,27 @@ def main() -> int:
             lines.append(
                 f"🔀 {a['name']} — 這幾天時好時壞、一直反覆,現在剛好是綠的但值得盯"
             )
+        for a in assessed:
+            if a["kind"] == "pending":
+                lines.append(f"⏳ {a['name']} — {a['detail']}")
+            if a["kind"] in ("ok", "pending"):
+                for detail, _ in a["extras"]:
+                    lines.append(f"↪ {a['name']} — {detail}")
         for a in switched_off:
             lines.append(f"🔕 {a['name']} — {a['detail']}")
         return lines
 
     if not problems:
         highlights = _highlights()
-        if highlights:
-            # 沒出事,但有恢復/反覆要讓他知道 —— 不是純報平安。
+        if pending:
             msg = (
-                f"🌅 早安 Kai — 後端沒出事,但有 {len(highlights)} 件想讓你知道 👇\n\n"
+                f"🌅 早安 Kai — 有 {len(pending)} 個自然排程尚未完成 👇\n\n"
                 + "\n".join(highlights)
-                + f"\n\n其餘 {len(assessed) - len(highlights)} 個都正常 ✅"
+            )
+        elif highlights:
+            # 沒出事,但有恢復/反覆要讓他知道 —— 不是純報平安。
+            msg = "🌅 早安 Kai — 自然排程首輪未見異常，有幾項附註 👇\n\n" + "\n".join(
+                highlights
             )
         else:
             # 全好:一句讓他放心。若連續多天全綠,順帶報個信心。
@@ -628,10 +827,10 @@ def main() -> int:
                     green += 1
                 else:
                     break
-            streak = f"（連續 {green} 天全綠）" if green >= 3 else ""
+            streak = f"（連續 {green} 天未見排程警訊）" if green >= 3 else ""
             msg = (
-                f"🌅 早安 Kai — 後端一切正常 😌{streak}\n\n"
-                f"{len(assessed)} 個排程都乖乖跑過、沒半個出事,今天不用你動手。"
+                f"🌅 早安 Kai — 自然排程紀錄未見異常 😌{streak}\n\n"
+                f"{len(assessed)} 個自然排程首輪回報成功。"
             )
     else:
         # (b) 有記憶:每條問題帶「連 N 天 / 今天第一次」,分辨慢性 vs 新問題;
@@ -646,33 +845,40 @@ def main() -> int:
                 head += " 🔀時好時壞"
             if a["url"]:
                 head += f"\n   👉 {a['url']}"
+            for detail, link in a["extras"]:
+                head += f"\n   ↪ {detail}"
+                if link:
+                    head += f" ({link})"
             blocks.append(head)
-        ok_n = len(assessed) - len(problems) - len(switched_off)
+        ok_n = sum(a["kind"] == "ok" for a in assessed)
         msg = f"🌅 早安 Kai — 有 {len(problems)} 個要你看一下 👇\n\n" + "\n\n".join(
             blocks
         )
         highlights = _highlights()
         if highlights:
-            msg += "\n\n另外(現在沒壞,但值得知道):\n" + "\n".join(highlights)
-        msg += f"\n\n其他 {ok_n} 個都正常 ✅"
+            msg += "\n\n另外：\n" + "\n".join(highlights)
+        if ok_n:
+            msg += f"\n\n其他 {ok_n} 個自然排程未見異常 ✅"
 
     # heartbeat 提醒:低調一行,但要在——這則的意義就是「沒收到=通知線斷了」。
+    msg += "\n\n只判讀 GitHub 執行紀錄，未核對實際工作產出或下游通知。"
     msg += "\n\n— 每天早上這一則;哪天沒來,就是通知管線自己掛了 🫥"
     sent = notify(msg)
 
-    # (b) 更新歷史:append 今天每條 kind + fleet 整體,裁到最近 N 天。
-    #     日期冪等(Taipei 日):同一天二次觸發(agent 測試 / workflow_dispatch)不再
-    #     重灌一格,否則把 streak/flapping 記憶灌失真——而這條記憶迴圈的唯一價值就是
-    #     分辨「慢性 vs 新問題」。訊息照送(上面已 notify),只有歷史 append 每天一次。
+    # Taipei 日只由自然 digest 首輪寫入一次；手動或重跑仍可出報告，
+    # 但不搶自然趨勢。pending 是一個非結論樣本，不算成功也不算失敗。
     today = now.astimezone(timezone(timedelta(hours=8))).date().isoformat()
-    if history.get("_last_date") != today:
+    if (
+        os.environ.get("GITHUB_EVENT_NAME") == "schedule"
+        and os.environ.get("GITHUB_RUN_ATTEMPT") == "1"
+        and history.get("_last_date") != today
+    ):
         for a in assessed:
             history[a["key"]] = (history.get(a["key"], []) + [a["kind"]])[
                 -_HISTORY_LEN:
             ]
-        history["_fleet"] = (
-            history.get("_fleet", []) + ["problem" if problems else "green"]
-        )[-_HISTORY_LEN:]
+        fleet_kind = "problem" if problems else "pending" if pending else "green"
+        history["_fleet"] = (history.get("_fleet", []) + [fleet_kind])[-_HISTORY_LEN:]
         history["_last_date"] = today
         _save_history(history)
 
