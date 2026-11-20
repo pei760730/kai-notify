@@ -452,6 +452,14 @@ def _assess(
             "url": url,
         }
 
+    if concl == "action_required":
+        return {
+            "kind": "fail",
+            "name": name,
+            "detail": f"{ago}前那次需要人工處理，請打開執行紀錄查看下一步",
+            "url": url,
+        }
+
     stale = age is not None and age > _STALE_AFTER.get(cadence, timedelta(hours=26))
     if stale:
         return {
