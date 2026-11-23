@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-22",
+ "_last_date": "2026-11-23",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -64,8 +64,8 @@
   "ok"
  ],
  "collector/collect.yml": [
-  "ok",
   "stale",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -94,7 +94,7 @@
   "ok",
   "ok",
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail"
@@ -154,10 +154,10 @@
   "stale"
  ],
  "style-superman/health.yml": [
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok"
@@ -181,19 +181,19 @@
   "ok"
  ],
  "th-ops/remind.yml": [
+  "fail",
+  "fail",
+  "fail",
   "ok",
-  "fail",
-  "fail",
-  "fail",
   "ok",
   "ok",
   "ok"
  ],
  "voc/daily.yml": [
-  "ok",
   "fail",
   "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok"
