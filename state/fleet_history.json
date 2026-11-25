@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-24",
+ "_last_date": "2026-11-25",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -92,7 +92,7 @@
  ],
  "gdrive-organizer/monthly-drive-audit.yml": [
   "ok",
-  "ok",
+  "fail",
   "fail",
   "fail",
   "fail",
@@ -123,8 +123,8 @@
   "ok",
   "ok",
   "ok",
-  "ok",
-  "pending"
+  "pending",
+  "ok"
  ],
  "media-sorter/backlog-watch.yml": [
   "ok",
@@ -155,7 +155,7 @@
  ],
  "style-superman/health.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -182,7 +182,7 @@
  ],
  "th-ops/remind.yml": [
   "fail",
-  "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
@@ -190,8 +190,8 @@
   "ok"
  ],
  "voc/daily.yml": [
-  "ok",
   "fail",
+  "ok",
   "ok",
   "ok",
   "ok",
