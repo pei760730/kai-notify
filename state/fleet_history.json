@@ -53,7 +53,7 @@
   "problem",
   "problem"
  ],
- "_last_date": "2026-11-27",
+ "_last_date": "2026-11-28",
  "benchmark-radar/radar-watchdog.yml": [
   "ok",
   "ok",
@@ -120,8 +120,8 @@
  "last30days/daily-brief.yml": [
   "ok",
   "ok",
-  "ok",
   "pending",
+  "ok",
   "ok",
   "ok",
   "ok"
